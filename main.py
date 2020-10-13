@@ -237,9 +237,16 @@ def epidemic(graph, n_inf):
 
 if __name__ == '__main__':
     initialize([4, 14, 2, 9])
-    simulate()
-    print(people_tot)
-    print(families)
+    g7 = gm.create_school_graph([4, 6, 8, 9, 13, 23, 45, 46, 47], 0.3)
+    print("fine funzione ")
+    gm.write_graph(g7, "school")
+    gm.print_graph(g7, "school")
+    print(gm.nx.edges(g7))
+    # input()
+    # simulate()
+    # print(people_tot)
+    # print(families)
+
     # g2 = gm.create_station_graph(30)
     # gm.print_graph(g2, "station1")
     # gm.write_graph(g2, "station")
