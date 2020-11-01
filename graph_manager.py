@@ -5,32 +5,36 @@ import random
 
 def create_school_graph(nodes_list, density=0.05):
     graph = nx.erdos_renyi_graph(len(nodes_list), density)
-    print("grafo creato")
     mapping = dict(zip(list(graph), nodes_list))
     print(nodes_list)
     print(mapping)
-    return nx.relabel_nodes(graph, mapping, copy=True)
+    return nx.relabel_nodes(graph, mapping, copy=False)
 
 
 def create_work_graph(nodes_list, density=0.30):
     graph = nx.erdos_renyi_graph(len(nodes_list), density)
-    print("grafo creato")
     mapping = dict(zip(list(graph), nodes_list))
     print(nodes_list)
     print(mapping)
-    return nx.relabel_nodes(graph, mapping, copy=True)
+    return nx.relabel_nodes(graph, mapping, copy=False)
 
 
 def create_home_graph(nodes_list):
     graph = nx.complete_graph(len(nodes_list))
     mapping = dict(zip(list(graph), nodes_list))
-    # print(nodes_list)
-    # print(mapping)
     return nx.relabel_nodes(graph, mapping, copy=False)
 
 
+def create_station_graph(nodes_list, density=0.1):
+    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    mapping = dict(zip(list(graph), nodes_list))
+    return nx.relabel_nodes(graph, mapping, copy=True)
+
+
 def read_graph(name):
-    return nx.read_adjlist(name + ".adjlist")
+    graph = nx.read_adjlist(str(name) + ".adjlist")
+    graph = nx.convert_node_labels_to_integers(graph, first_label=0, ordering='default', label_attribute=None)
+    return graph
 
 
 def write_graph(graph, name):
@@ -42,6 +46,10 @@ def print_graph(graph, name):
     print("number of nodes ............... " + str(nx.number_of_nodes(graph)))
     print("number of edges ............... " + str(nx.number_of_edges(graph)))
     print("density ....................... " + str(nx.density(graph)))
+    print("graph edges: ")
+    print(list(nx.edges(graph)))
+    print("graph nodes: ")
+    print(sorted(list(graph)))
     nx.draw_circular(graph)
     # nx.draw_networkx_edge_labels(graph)
     ml.savefig(name + "graph.png")

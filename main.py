@@ -1,24 +1,36 @@
 import graph_manager as gm
 import random
-import EoN as eon
+import EoN as eon  # not used
 import matplotlib.pyplot as plt
 from itertools import islice
 from random import randint
 
-n = 50
-i_list = []
-s_list = []
-r_list = []
-i_t = []
-s_t = []
-r_t = []
-people_tot = []
-families = []
+n = 1500  # number of total node
+n_inf = 80  # number of initial infected
+step_p_day = 1  # steo for days
+n_days = 20  # number of days
+beta = 0.1  # probability of contagion
+sigma = 1 / 3  # transition rate from E to I
+gamma = 1 / 10  # transition rate from I to R
+
+s_list = []  # list of susceptible nodes
+e_list = []  # list of exposed nodes
+i_list = []  # list of infected nodes
+r_list = []  # list of recovered/isolated/dead nodes
+
+s_t = []  # number of susceptible for each step (e. g. step_p_day = 10 -> step = 1 / 10)
+e_t = []  # number of exposed for each step
+i_t = []  # number of infected for each step
+r_t = []  # number of recovered/isolated/dead for each step
+
+people_tot = []  # array of nodes
+families = []  # list of families, each family is a list of nodes
+station_user = []  # list of list of people that use one specific station/bus
 time = 0
 
 
-def generate_families(min_size=1, max_size=6):
-    it = iter(people_tot)
+def generate_partitions(input_list, min_size=1, max_size=6):
+    it = iter(input_list)
     while True:
         nxt = list(islice(it, randint(min_size, max_size)))
         if nxt:
@@ -27,26 +39,53 @@ def generate_families(min_size=1, max_size=6):
             break
 
 
-def initialize(initial_I):
+def validation():
+    global n_days
+    global time
+    graph = gm.nx.erdos_renyi_graph(n, 0.1)
+    # gm.write_graph(graph, "validation_graph")
+    # graph = gm.read_graph("validation_graph")
+    interval_tot = n_days * step_p_day
+    sim_SEIR(graph, interval_tot)
+    # change_grained()
+
+
+def initialize():
     global time
     global people_tot
     global families
-    global i_list
     global s_list
+    global e_list
+    global i_list
     global r_list
+    global station_users
+    global n_inf
 
+    random.seed(a=None)
     time = 0
     people_tot = [elem for elem in range(0, n)]
-    i_list = [[elem, time] for elem in initial_I]
+    random.shuffle(people_tot)
+    initial_i = [elem for elem in people_tot[:n_inf]]
+    i_list = [[elem, 0, 0] for elem in initial_i]
     for elem in people_tot:
         if is_infected(elem) == -1:
             s_list.append(elem)
-    print(i_list)
-    print("S " + str(s_list))
-    # breakpoint()
-    random.shuffle(people_tot)
-    families = list(generate_families())
+    e_list = []
     r_list = []
+    # print(sorted(s_list))
+    # print(sorted(i_list))
+    # print(sorted(people_tot))
+    # input()
+    random.shuffle(people_tot)
+    families = list(generate_partitions(people_tot, 1, 6))
+    random.shuffle(people_tot)
+    station_users = list(generate_partitions(people_tot, 50, 400))
+
+    # i = 0
+    # for elem in temp:
+    #     gm.print_graph(station_users[i], "station")
+    #     i += 1
+    # input()
 
 
 def is_infected(elem):
@@ -60,125 +99,204 @@ def is_infected(elem):
     return i - 1
 
 
-def simulate():
-    global step
+def is_exposed(elem):
+    ctrl = True
     i = 0
-    step = 5
-    for elem in families:
-        graph = gm.create_home_graph(elem)
-        # gm.print_graph(graph, str(i))
-        sim_SIR(graph, step)
-        # input()
+    while ctrl and i < len(e_list):
+        ctrl = not (elem == e_list[i][0])
+        i += 1
+    if ctrl:
+        return -1
+    return i - 1
 
 
-def sim_SIR(graph, interval_tot):
+def simulate():
+    global n_days
+    global time
+
+    # for elem in families:
+    #     graph = gm.create_home_graph(elem)
+    #     # gm.print_graph(graph, str(i))
+    #     sim_SIR(graph, n_days)
+    #     # input()
+    #
+    # time += n_days
+    # n_days = 40
+    # for elem in station_users:
+    #     graph = gm.create_station_graph(elem)
+    #     sim_SIR(graph, n_days)
+    # time += n_days
+    print(s_t)
+    print(i_t)
+    print(r_t)
+
+
+def sim_SEIR(graph, interval_tot):
     global s_list
     global i_list
     global r_list
-    global time
-    mu = 1 / 6
-    beta = 0.3
-    s_t = []
-    i_t = []
-    r_t = []
+    global s_t
+    global i_t
+    global r_t
+    # marked_i = {elem: False for elem in graph.nodes}
+    gamma1 = gamma * (1 / step_p_day)
+    sigma1 = sigma * (1 / step_p_day)
+    beta1 = beta * (1 / step_p_day)
+    for elem in i_list:
+        elem[2] = random.expovariate(gamma)  # 1 / gamma
+
+    for step in range(0, interval_tot):
+        if (step % step_p_day) == 0:
+            print(i_list)
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
+
+        # I --> R
+        for infect in i_list:
+            if infect[2] <= infect[1]:  # abbiamo superato la durata dell'infezione generata
+                r_list.append(infect[0])
+                i_list.remove(infect)
+            else:
+                infect[1] += 1
+        # E --> I
+        for exp in e_list:
+            if exp[2] <= exp[1]:  # abbiamo superato la durata dell'esposizione generata
+                duration_gamma = random.expovariate(gamma1)
+                i_list.append([exp[0], 0, duration_gamma])
+                e_list.remove(exp)
+            else:
+                exp[1] += 1
+
+        for elem in i_list:
+            ngbs = graph.neighbors(elem[0])
+            for ngb in ngbs:
+                r = random.uniform(0.0, 1.0)
+                if r < beta1 and ngb in s_list:
+                    duration_sigma = random.expovariate(sigma)
+                    e_list.append([ngb, 0, duration_sigma])
+                    s_list.remove(ngb)
+
+    return [s_t, i_t, r_t]
+
+
+def sim_SEIR_v2(graph, interval_tot):
+    global s_list
+    global i_list
+    global r_list
+    global s_t
+    global i_t
+    global r_t
+    gamma1 = gamma * (1 / step_p_day)
+    sigma1 = sigma * (1 / step_p_day)
+    beta1 = beta * (1 / step_p_day)
+    for elem in i_list:
+        elem[2] = random.expovariate(gamma)  # 1 / gamma
+        # print(elem[2])
     print("\nGRAFO IN ESAME")
     print("Nodi del grafo: " + str(list(graph)))
-    print("archi del grafo: " + str(list(graph.edges)))
-    print("\nbefor SIR")
-    print(" S totali: " + str(s_list))
+    # print("archi del grafo: " + str(list(graph.edges)))
+    print("\nbefor SEIR")
+    print(" S totali: " + str(sorted(s_list)))
+    print(" E totali: " + str(e_list))
     print(" I totali: " + str(i_list))
     print(" R totali: " + str(r_list) + "")
     # simulazione
-    for time in range(time, time + interval_tot):
-        # I -> R
-        temp = []
-        for elem in list(graph):
-            index = is_infected(elem)
-            if index != -1:
-                rv = random.normalvariate(i_list[index][1], 1.0)
-                if i_list[index][1] >= (1 / mu):
-                    r_list.append(elem)
-                else:
-                    i_list[index][1] += 1
-                    # temp.append(i_list[index][1])
-                # i_list = temp
+    for step in range(0, interval_tot):
+        if (step % step_p_day) == 0:
+            print(i_list)
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
+
+        # I --> R
+        for infect in i_list:
+            if infect[2] <= infect[1]:  # abbiamo superato la durata dell'infezione generata
+                r_list.append(infect[0])
+                i_list.remove(infect)
+            else:
+                infect[1] += 1
+        # E --> I
+        for exp in e_list:
+            if exp[2] <= exp[1]:  # abbiamo superato la durata dell'esposizione generata
+                duration_gamma = random.expovariate(gamma1)
+                i_list.append([exp[0], 0, duration_gamma])
+                e_list.remove(exp)
+            else:
+                exp[1] += 1
 
         for elem in list(graph):
-            # print("elem " + str(elem))
-            if is_infected(elem) != -1:
+            if is_infected(elem) != -1:  # se il nodo è infetto
                 ngbs = graph.neighbors(elem)
-                # print("ngbs " + str(list(ngbs)))
                 for ngb in ngbs:
                     r = random.uniform(0.0, 1.0)
-                    if r < beta and ngb in s_list:
-                        i_list.append([ngb, 0])
+                    if r < beta1 and ngb in s_list:
+                        duration_sigma = random.expovariate(sigma)
+                        e_list.append([ngb, 0, duration_sigma])
                         s_list.remove(ngb)
-        s_t.append(len(s_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
 
-    # print("s" + str(s_t))
-    # print("i" + str(i_t))
-    # print("r" + str(r_t))
-    print("SIR result after " + str(interval_tot) + " step:")
-    print(" S totali: " + str(s_list))
+    print("SEIR result after " + str(interval_tot) + " step:")
+    print(" S totali: " + str(sorted(s_list)))
+    print(" E totali: " + str(e_list))
     print(" I totali: " + str(i_list))
     print(" R totali: " + str(r_list))
     print("---" * 20)
     return [s_t, i_t, r_t]
 
 
-def simulation_SIR(graph, n_inf):
-    # inizializzazione
-    global i_list
-    global s_list
-    global r_list
-    s_t = []
-    i_t = []
-    r_t = []
-    mu = 0.2
-    beta = 0.3
-    list_nodes = list(graph.nodes())
-    random.shuffle(list_nodes)
-    i_list = [[elem, 1] for elem in list_nodes[0:n_inf]]
-    s_list = list_nodes[n_inf:]
-    r_list = []
-    s_t.append(len(s_list))
-    i_t.append(len(i_list))
-    r_t.append(len(r_list))
+# def simulation_SIR(graph, n_inf):
+#     # inizializzazione
+#     global i_list
+#     global s_list
+#     global r_list
+#     s_t = []
+#     i_t = []
+#     r_t = []
+#     mu = 0.2
+#     beta = 0.1
+#     list_nodes = list(graph.nodes())
+#     random.shuffle(list_nodes)
+#     i_list = [[elem, 1] for elem in list_nodes[0:n_inf]]
+#     s_list = list_nodes[n_inf:]
+#     r_list = []
+#     s_t.append(len(s_list))
+#     i_t.append(len(i_list))
+#     r_t.append(len(r_list))
+#
+#     # simulazione
+#     for time in range(0, 30):
+#         # I -> R
+#         temp = []
+#         for elem in i_list:
+#             rv = random.normalvariate(elem[1], 1.0)
+#             if rv >= (1 / mu):
+#                 r_list.append(elem[0])
+#             else:
+#                 elem[1] += 1
+#                 temp.append(elem)
+#         i_list = temp
+#
+#         for elem in i_list:
+#             ngbs = graph.neighbors(elem[0])
+#             for ngb in ngbs:
+#                 r = random.uniform(0.0, 1.0)
+#                 if r < beta and ngb in s_list:
+#                     breakpoint()
+#                     i_list.append([ngb, 1])
+#                     s_list.remove(ngb)
+#         s_t.append(len(s_list))
+#         i_t.append(len(i_list))
+#         r_t.append(len(r_list))
+#
+#     print("s" + str(s_t))
+#     print("i" + str(i_t))
+#     print("r" + str(r_t))
+#     return [s_t, i_t, r_t]
 
-    # simulazione
-    for time in range(0, 30):
-        # I -> R
-        temp = []
-        for elem in i_list:
-            rv = random.normalvariate(elem[1], 1.0)
-            if rv >= (1 / mu):
-                r_list.append(elem[0])
-            else:
-                elem[1] += 1
-                temp.append(elem)
-        i_list = temp
 
-        for elem in i_list:
-            ngbs = graph.neighbors(elem[0])
-            for ngb in ngbs:
-                r = random.uniform(0.0, 1.0)
-                if r < beta and ngb in s_list:
-                    breakpoint()
-                    i_list.append([ngb, 1])
-                    s_list.remove(ngb)
-        s_t.append(len(s_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
-
-    print("s" + str(s_t))
-    print("i" + str(i_t))
-    print("r" + str(r_t))
-    return [s_t, i_t, r_t]
-
-
-def plot_SIR_result(s_t, i_t, r_t):
+def plot_SIR_result():
     time = []
     for i in range(0, len(s_t)):
         time.append(i + 1)
@@ -195,8 +313,27 @@ def plot_SIR_result(s_t, i_t, r_t):
     plt.close()
 
 
+def plot_SEIR_result():
+    time = []
+    for i in range(0, len(s_t)):
+        time.append(i + 1)
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    print(time)
+    print(s_t)
+    plt.plot(time, s_t, color='blue')
+    plt.plot(time, e_t, color='orange')
+    plt.plot(time, i_t, color='red')
+    plt.plot(time, r_t, color='yellow')
+    plt.title('Simulation Result - SEIR', fontsize=14)
+    plt.xlabel('Time (gg)', fontsize=14, )
+    plt.ylabel('', fontsize=14)
+    plt.grid(True)
+    plt.savefig("result_SEIR.png")
+    plt.close()
+
+
 def epidemic(graph, n_inf):
-    mu = 0.2
+    mu = 0.002
     beta = 0.3
 
     # scelgo random gli infetti iniziali
@@ -235,15 +372,42 @@ def epidemic(graph, n_inf):
     print('done\n')
 
 
+def change_grained():
+    global i_t
+    global s_t
+    global r_t
+    global e_t
+    temp1 = []
+    temp2 = []
+    temp3 = []
+    temp4 = []
+
+    s_t = list(generate_partitions(s_t, step_p_day, step_p_day))
+    e_t = list(generate_partitions(e_t, step_p_day, step_p_day))
+    i_t = list(generate_partitions(i_t, step_p_day, step_p_day))
+    r_t = list(generate_partitions(r_t, step_p_day, step_p_day))
+
+    for index in range(0, len(s_t)):
+        temp1.append(sum(s_t[index]))
+        temp4.append(sum(e_t[index]))
+        temp2.append(sum(i_t[index]))
+        temp3.append(sum(r_t[index]))
+
+    s_t = temp1
+    e_t = temp4
+    i_t = temp2
+    r_t = temp3
+
+
 if __name__ == '__main__':
-    initialize([4, 14, 2, 9])
-    g7 = gm.create_school_graph([4, 6, 8, 9, 13, 23, 45, 46, 47], 0.3)
-    print("fine funzione ")
-    gm.write_graph(g7, "school")
-    gm.print_graph(g7, "school")
-    print(gm.nx.edges(g7))
+    # input();
+    initialize()
+    # g7 = gm.create_school_graph([4, 6, 8, 9, 13, 23, 45, 46, 47], 0.3)
+    # print(gm.nx.edges(g7))
     # input()
     # simulate()
+    validation()
+    plot_SEIR_result()
     # print(people_tot)
     # print(families)
 
@@ -255,3 +419,55 @@ if __name__ == '__main__':
     # [s_t, i_t, r_t] = simulation_SIR(g3, 1)
     # plot_SIR_result(s_t, i_t, r_t)
     # epidemic(g2, 6)
+
+# def sim_SIR(graph, interval_tot):
+#     global s_list
+#     global i_list
+#     global r_list
+#     global s_t
+#     global i_t
+#     global r_t
+#     mu = 1 / 15
+#     sigma = 1 / 2
+#     for elem in i_list:
+#         elem[2] = random.expovariate(mu)  # 1 / mu
+#         # print(elem[2])
+#     print("\nGRAFO IN ESAME")
+#     print("Nodi del grafo: " + str(list(graph)))
+#     print("archi del grafo: " + str(list(graph.edges)))
+#     print("\nbefor SIR")
+#     print(" S totali: " + str(sorted(s_list)))
+#     print(" I totali: " + str(i_list))
+#     print(" R totali: " + str(r_list) + "")
+#     # simulazione
+#     for step in range(0, time + interval_tot):
+#
+#         s_t.append(len(s_list))
+#         i_t.append(len(i_list))
+#         r_t.append(len(r_list))
+#
+#         for infect in i_list:
+#             if infect[2] <= infect[1]:  # abbiamo superato la durata dell'infezione generata
+#                 r_list.append(infect[0])
+#                 i_list.remove(infect)
+#             else:
+#                 infect[1] += 1
+#
+#         for elem in list(graph):
+#             if is_infected(elem) != -1:  # se il nodo è infetto
+#                 ngbs = graph.neighbors(elem)
+#                 for ngb in ngbs:
+#                     r = random.uniform(0.0, 1.0)
+#                     if r < beta and ngb in s_list:
+#                         duration = random.expovariate(mu)  # 1 / mu  # random.normalvariate(1 / mu, 1.0)
+#                         # print(duration)
+#                         # print("\n\n"+str(duration))
+#                         i_list.append([ngb, 0, duration])
+#                         s_list.remove(ngb)
+#
+#     print("SIR result after " + str(interval_tot) + " step:")
+#     print(" S totali: " + str(sorted(s_list)))
+#     print(" I totali: " + str(i_list))
+#     print(" R totali: " + str(r_list))
+#     print("---" * 20)
+#     return [s_t, i_t, r_t]
