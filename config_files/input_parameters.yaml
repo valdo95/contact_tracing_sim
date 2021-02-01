@@ -1,0 +1,8 @@
+n_nodes: 2000
+home_step: 12
+work_step: 12
+n_days: 15
+beta: 0.01
+sigma: 0.33
+gamma: 0.01
+n_inf: 30
