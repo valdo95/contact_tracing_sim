@@ -82,6 +82,17 @@ def print_graph(graph, name):
     ml.savefig(name + "graph.png")
     ml.close()
 
+
+def print_graph_with_labels(graph):
+    for elem in graph.nodes:
+        print("Id: " + str(elem) + "  Graph Name: " + str(graph.nodes[elem]["graph_name"]))
+
+
+def print_graph_with_labels_and_neighb(graph):
+    for elem in graph.nodes:
+        print("Id: " + str(elem) + "     Graph Name: " + str(
+            graph.nodes[elem]["graph_name"]) + "    Neighbs List: " + str(list(nx.neighbors(graph, elem))))
+
 # def create_home_graph(n):
 #     graph = nx.Graph()
 #     for i in range(0, n):
