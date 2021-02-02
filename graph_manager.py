@@ -22,13 +22,31 @@ def create_work_graph(nodes_list, density=0.30):
 def create_home_graph(nodes_list):
     graph = nx.complete_graph(len(nodes_list))
     mapping = dict(zip(list(graph), nodes_list))
-    return nx.relabel_nodes(graph, mapping, copy=False)
+    res = nx.relabel_nodes(graph, mapping, copy=True)
+    type_graph = []
+    nx.set_node_attributes(res, type_graph, "graph_name")
+    type_graph.append("home")
+    return res
 
 
 def create_station_graph(nodes_list, density=0.1):
     graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
     mapping = dict(zip(list(graph), nodes_list))
-    return nx.relabel_nodes(graph, mapping, copy=True)
+    res = nx.relabel_nodes(graph, mapping, copy=True)
+    type_graph = []
+    nx.set_node_attributes(res, type_graph, "graph_name")
+    type_graph.append("station")
+    return res
+
+
+def create_tube_graph(nodes_list, density=0.2):
+    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    mapping = dict(zip(list(graph), nodes_list))
+    res = nx.relabel_nodes(graph, mapping, copy=True)
+    type_graph = []
+    nx.set_node_attributes(res, type_graph, "graph_name")
+    type_graph.append("tube")
+    return res
 
 
 def read_graph(name):
@@ -39,6 +57,15 @@ def read_graph(name):
 
 def write_graph(graph, name):
     nx.write_adjlist(graph, name + ".adjlist")
+
+
+def write_labeled_graph(graph, name):
+    # nx.write_graphml(graph, name + ".graphml")
+    nx.write_gml(graph, "test.gml")
+
+
+def read_labeled_graph(name):
+    return nx.read_gml(name + ".gml")
 
 
 def print_graph(graph, name):
