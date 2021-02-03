@@ -2,12 +2,14 @@ import graph_manager as gm
 import random
 import EoN as eon  # not used
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy
 from itertools import islice
 from random import randint
 import time
-import matplotlib.patches as mpatches
 import yaml
 import sys
+import gc
 
 n = 0  # number of total node
 home_step = 0  # step for days
@@ -47,18 +49,18 @@ def generate_partitions(input_list, min_size=1, max_size=6):
             break
 
 
-def count_SEIR():
-    global s_t
-    global e_t
-    global i_t
-    global r_t
-    s_t.append(len(s_list))
-    e_t.append(len(e_list))
-    i_t.append(len(i_list))
-    r_t.append(len(r_list))
+def create_partions():
+    global people_tot
+    global fr_station_user
+
+    random.shuffle(people_tot)
+    n_station_user = int(fr_station_user * n)
+    station_partitions = list(generate_partitions(people_tot[:n_station_user], 20, 100))
+    tube_partitions = list(generate_partitions(people_tot[n_station_user:], 5, 40))
+    return [station_partitions, tube_partitions]
 
 
-def validation():
+def validation_0():
     global n_days
     global clock
     global n
@@ -80,26 +82,7 @@ def validation():
     gamma = 0.1
     fr_inf = 0.02
     step_p_day = 1
-
-    random.seed(a=None)
-    people_tot = [elm for elm in range(0, n)]
-    n_inf = int(fr_inf * n)
-    initial_i = [el for el in people_tot[:n_inf]]
-    i_list = [[el, 0] for el in initial_i]
-    for elm in people_tot:
-        if is_infected(elm) == -1:
-            s_list.append(elm)
-    e_list = []
-    r_list = []
-
-    # station_partitions, tube_partitions = initialize()
-    # graph = gm.nx.Graph()
-    # for elm in station_partitions:
-    #     temp = gm.create_station_graph(elm)
-    #     graph = gm.nx.union(graph, temp)
-    # for elm in tube_partitions:
-    #     temp = gm.create_tube_graph(elm)
-    #     graph = gm.nx.union(graph, temp)
+    initialize()
     graph = gm.nx.erdos_renyi_graph(n, 0.05)
     initialize_Infected()
     interval_tot = n_days * step_p_day
@@ -107,94 +90,147 @@ def validation():
     count_SEIR()
 
 
-def print_SEIR_count():
-    global s_t
-    global e_t
-    global i_t
-    global r_t
-    print("\nCount SEIR: ")
-    print("s_t: " + str(s_t))
-    print("e_t: " + str(e_t))
-    print("i_t: " + str(i_t))
-    print("r_t: " + str(r_t))
+# def validation_1():
+#     global n_days
+#     global clock
+#     global n
+#     global beta
+#     global gamma
+#     global sigma
+#     global people_tot
+#     global families
+#     global s_list
+#     global e_list
+#     global i_list
+#     global r_list
+#     global commuter_partitions
+#     global fr_inf
+#     global step_p_day
+#     global s_t
+#     global e_t
+#     global i_t
+#     global r_t
+#
+#     n = 500
+#     n_days = 50
+#     beta = 0.2
+#     sigma = 0.05
+#     gamma = 0.01
+#     fr_inf = 50
+#     step_p_day = 1
+#
+#     people_tot = [elem for elem in range(0, n * 4)]
+#     part1 = people_tot[:n]
+#     part2 = people_tot[n:2 * n]
+#     part3 = people_tot[2 * n:3 * n]
+#     part4 = people_tot[3 * n:4 * n]
+#     initial_i = []
+#     # print(part1)
+#     # print(part2)
+#     # input()
+#     for i in range(0, n * 4, 10):
+#         initial_i.append(i)
+#     i_list = [[elem, 0] for elem in initial_i]
+#     for elem in people_tot:
+#         if is_infected(elem) == -1:
+#             s_list.append(elem)
+#     e_list = []
+#     r_list = []
+#     graph1 = gm.create_station_graph(part1, 0.1)
+#     print("Part1")
+#     print(part1)
+#     graph2 = gm.create_station_graph(part2, 0.1)
+#     print("Part2")
+#     print(part2)
+#     graph3 = gm.create_station_graph(part3, 0.1)
+#     print("Part3")
+#     print(part3)
+#     graph4 = gm.create_station_graph(part4, 0.1)
+#     print("Part4")
+#     print(part4)
+#     graph5 = gm.nx.union(graph1, graph2)
+#     graph6 = gm.nx.union(graph5, graph3)
+#     graph7 = gm.nx.union(graph6, graph4)
+#     sim_SEIR(graph7, 0, n_days)
+#     print_SEIR_count()
+#     print_list()
 
 
-def print_list():
-    global s_list
-    global e_list
-    global i_list
-    global r_list
-    print("\nLists: ")
-    print("s_list: " + str(sorted(s_list)))
-    print("e_list: " + str(e_list))
-    print("i_list: " + str(i_list))
-    print("r_list: " + str(sorted(r_list)))
-
-
-def validation1():
+def first_validation(validation_type):
     global n_days
     global clock
     global n
     global beta
     global gamma
     global sigma
+    global fr_inf
+    global s_list
+    global i_list
+    global r_list
+    global step_p_day
     global people_tot
-    global families
+
+    with open("config_files/" + str(validation_type) + "_input.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        n = data["n_nodes"]  # number of total node
+        n_days = data["n_days"]  # number of days
+        n_days = data["n_days"]
+        beta = data["beta"]
+        sigma = data["sigma"]
+        gamma = data["gamma"]
+        fr_inf = data["fr_inf"]
+        step_p_day = 1
+        print("\nGraph and Time Parameters: \n")
+        print("Number of Nodes: .......... " + str(n))
+        print("n days: ................... " + str(n_days))
+
+        print("\nEpidemic Parameters: \n")
+        print("Beta: ..................... " + str(beta))
+        print("Sigma: .................... " + str(sigma))
+        print("Gamma: .................... " + str(gamma))
+        print("Fract Infected: ........... " + str(fr_inf))
+        print()
+
+    # gamma = 1 - numpy.nextafter(1., 0.)
+    # sigma = 50  # sys.maxsize #genero numero molto grande
+    graph = gm.nx.erdos_renyi_graph(n, 0.05)
+    flush_structures()
+    initialize()
+    initialize_Infected()
+    interval_tot = n_days * step_p_day
+    sim_SIR(graph, 0, interval_tot)
+    print_SIR_count()
+    plot_SIR_result(validation_type)
+    flush_structures()
+    initialize()
+    initialize_Infected()
+    sim_SEIR(graph, 0, interval_tot)
+    print_SEIR_count()
+    plot_SEIR_result(validation_type)
+
+
+def flush_structures():
     global s_list
     global e_list
     global i_list
     global r_list
-    global commuter_partitions
-    global fr_inf
-    global step_p_day
+
     global s_t
     global e_t
     global i_t
     global r_t
 
-    n = 500
-    n_days = 50
-    beta = 0.2
-    sigma = 0.05
-    gamma = 0.01
-    fr_inf = 50
-    step_p_day = 1
-
-    people_tot = [elem for elem in range(0, n * 4)]
-    part1 = people_tot[:n]
-    part2 = people_tot[n:2 * n]
-    part3 = people_tot[2 * n:3 * n]
-    part4 = people_tot[3 * n:4 * n]
-    initial_i = []
-    # print(part1)
-    # print(part2)
-    # input()
-    for i in range(0, n * 4, 10):
-        initial_i.append(i)
-    i_list = [[elem, 0] for elem in initial_i]
-    for elem in people_tot:
-        if is_infected(elem) == -1:
-            s_list.append(elem)
+    s_list = []
     e_list = []
+    i_list = []
     r_list = []
-    graph1 = gm.create_station_graph(part1, 0.1)
-    print("Part1")
-    print(part1)
-    graph2 = gm.create_station_graph(part2, 0.1)
-    print("Part2")
-    print(part2)
-    graph3 = gm.create_station_graph(part3, 0.1)
-    print("Part3")
-    print(part3)
-    graph4 = gm.create_station_graph(part4, 0.1)
-    print("Part4")
-    print(part4)
-    graph5 = gm.nx.union(graph1, graph2)
-    graph6 = gm.nx.union(graph5, graph3)
-    graph7 = gm.nx.union(graph6, graph4)
-    sim_SEIR(graph7, 0, n_days)
-    print_SEIR_count()
-    print_list()
+
+    s_t = []
+    e_t = []
+    i_t = []
+    r_t = []
+
+    gc.get_stats()
 
 
 def initialize():
@@ -231,11 +267,6 @@ def initialize():
             s_list.append(elm)
     e_list = []
     r_list = []
-    random.shuffle(people_tot)
-    n_station_user = int(fr_station_user * n)
-    station_partitions = list(generate_partitions(people_tot[:n_station_user], 20, 100))
-    tube_partitions = list(generate_partitions(people_tot[n_station_user:], 5, 40))
-    return [station_partitions, tube_partitions]
 
 
 def initialize_Infected():
@@ -273,7 +304,8 @@ def simulate():
 
     station_partitions = []
     tube_partitions = []
-    station_partitions, tube_partitions = initialize()
+    initialize()
+    station_partitions, tube_partitions = create_partions()
     start_time = time.time()
     graph = gm.nx.Graph()
     for elm in station_partitions:
@@ -286,7 +318,7 @@ def simulate():
     initialize_Infected()
     sim_SEIR(graph, 0, 100)
     plot_SEIR_result("simulation")
-    #gm.print_graph_with_labels_and_neighb(graph)
+    # gm.print_graph_with_labels_and_neighb(graph)
 
     end_time = time.time()
     duration = round((end_time - start_time), 3)
@@ -297,8 +329,47 @@ def simulate():
     # print(r_t)
 
 
+def sim_SIR(graph, start_t, end_t):
+    global s_list
+    global i_list
+    global r_list
+    global s_t
+    global i_t
+    global r_t
+
+    gamma1 = gamma * (1 / step_p_day)
+    sigma1 = sigma * (1 / step_p_day)
+    beta1 = beta * (1 / step_p_day)
+
+    for step in range(start_t, end_t):
+        # print("Istante: "+str(step))
+        s_t.append(len(s_list))
+        e_t.append(len(e_list))
+        i_t.append(len(i_list))
+        r_t.append(len(r_list))
+        # I --> R
+        for index in range(len(i_list) - 1, -1, -1):
+            # if infect[0] in part:
+            if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
+                r_list.append(i_list[index][0])
+                i_list.remove(i_list[index])
+            else:
+                i_list[index][1] -= 1
+
+        for elem in i_list:
+            ngbs = graph.neighbors(elem[0])
+            for ngb in ngbs:
+                if ngb in s_list:
+                    r = random.uniform(0.0, 1.0)
+                    if r < beta1:  # l'infetto contatta il vicino
+                        duration_gamma = random.expovariate(gamma1)
+                        i_list.append([ngb, duration_gamma])
+                        s_list.remove(ngb)
+
+
 def sim_SEIR(graph, start_t, end_t):
     global s_list
+    global e_list
     global i_list
     global r_list
     global s_t
@@ -311,29 +382,66 @@ def sim_SEIR(graph, start_t, end_t):
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-        # if last_part:
-        #     count_SEIR()
+        # print("Istante: "+str(step))
         s_t.append(len(s_list))
         e_t.append(len(e_list))
         i_t.append(len(i_list))
         r_t.append(len(r_list))
         # I --> R
-        for infect in i_list:
+        for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
-            if infect[1] <= 0:  # abbiamo superato la durata dell'infezione generata
-                r_list.append(infect[0])
-                i_list.remove(infect)
+            if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
+                r_list.append(i_list[index][0])
+                i_list.remove(i_list[index])
             else:
-                infect[1] -= 1
+                i_list[index][1] -= 1
         # E --> I
-        for exp in e_list:
-            # if exp[0] in part:
-            if exp[1] <= 0:  # abbiamo superato la durata dell'esposizione generata
+        # print("Prima: " + str(e_list))
+        for index in range(len(e_list) - 1, -1, -1):
+            if e_list[index][1] <= 0:
                 duration_gamma = random.expovariate(gamma1)
-                i_list.append([exp[0], duration_gamma])
-                e_list.remove(exp)
+                i_list.append([e_list[index][0], duration_gamma])
+                e_list.remove(e_list[index])
             else:
-                exp[1] -= 1
+                e_list[index][1] -= 1
+        # print("Dopo: " + str(e_list))
+        for elem in i_list:
+            # if elem[0] in part:
+            ngbs = graph.neighbors(elem[0])
+            for ngb in ngbs:
+                if ngb in s_list:
+                    r = random.uniform(0.0, 1.0)
+                    if r < beta1:  # l'infetto contatta il vicino
+                        duration_sigma = random.expovariate(sigma1)
+                        e_list.append([ngb, duration_sigma])
+                        s_list.remove(ngb)
+
+
+def sim_SIROld(graph, start_t, end_t):
+    global s_list
+    global i_list
+    global r_list
+    global s_t
+    global i_t
+    global r_t
+
+    gamma1 = gamma * (1 / step_p_day)
+    sigma1 = sigma * (1 / step_p_day)
+    beta1 = beta * (1 / step_p_day)
+
+    for step in range(start_t, end_t):
+
+        s_t.append(len(s_list))
+        e_t.append(len(e_list))
+        i_t.append(len(i_list))
+        r_t.append(len(r_list))
+        # I --> R
+        for index in range(len(i_list) - 1, -1, -1):
+            if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
+                r_list.append(i_list[index][0])
+                i_list.remove(i_list[index])
+            else:
+                i_list[index][1] -= 1
 
         for elem in i_list:
             # if elem[0] in part:
@@ -342,8 +450,8 @@ def sim_SEIR(graph, start_t, end_t):
                 if ngb in s_list:
                     r = random.uniform(0.0, 1.0)
                     if r < beta1:  # l'infetto contatta il vicino
-                        duration_sigma = random.expovariate(sigma)
-                        e_list.append([ngb, duration_sigma])
+                        duration_gamma = random.expovariate(gamma1)
+                        i_list.append([elem[0], duration_gamma])
                         s_list.remove(ngb)
 
 
@@ -400,7 +508,41 @@ def sim_SEIRIneff(graph, start_t, end_t, part):
     return [s_t, i_t, r_t]
 
 
-def plot_SIR_result():
+def print_SEIR_count():
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    print("\nCount SEIR: ")
+    print("s_t: " + str(s_t))
+    print("e_t: " + str(e_t))
+    print("i_t: " + str(i_t))
+    print("r_t: " + str(r_t))
+
+
+def print_SIR_count():
+    global s_t
+    global i_t
+    global r_t
+    print("\nCount SIR: ")
+    print("s_t: " + str(s_t))
+    print("i_t: " + str(i_t))
+    print("r_t: " + str(r_t))
+
+
+def print_list():
+    global s_list
+    global e_list
+    global i_list
+    global r_list
+    print("\nLists: ")
+    print("s_list: " + str(sorted(s_list)))
+    print("e_list: " + str(e_list))
+    print("i_list: " + str(i_list))
+    print("r_list: " + str(sorted(r_list)))
+
+
+def plot_SIR_result(filename):
     time = []
     for i in range(0, len(s_t)):
         time.append(i + 1)
@@ -413,7 +555,15 @@ def plot_SIR_result():
     plt.xlabel('Time', fontsize=14)
     plt.ylabel('', fontsize=14)
     plt.grid(True)
-    plt.savefig("result.png")
+
+    # legend
+    blue_patch = mpatches.Patch(color='blue', label='Susceptible')
+    orange_patch = mpatches.Patch(color='orange', label='Exposed')
+    red_patch = mpatches.Patch(color='red', label='Infected')
+    yellow_patch = mpatches.Patch(color='yellow', label='Reduced')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
+
+    plt.savefig("img/" + str(filename) + "_SIR.png")
     plt.close()
 
 
@@ -430,15 +580,27 @@ def plot_SEIR_result(filename):
     plt.xlabel('Time (gg)', fontsize=14, )
     plt.ylabel('', fontsize=14)
     plt.grid(True)
+
     # legend
     blue_patch = mpatches.Patch(color='blue', label='Susceptible')
     orange_patch = mpatches.Patch(color='orange', label='Exposed')
     red_patch = mpatches.Patch(color='red', label='Infected')
     yellow_patch = mpatches.Patch(color='yellow', label='Reduced')
-
     plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
-    plt.savefig("img/"+str(filename)+"_SEIR.png")
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
     plt.close()
+
+
+def count_SEIR():
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    s_t.append(len(s_list))
+    e_t.append(len(e_list))
+    i_t.append(len(i_list))
+    r_t.append(len(r_list))
 
 
 def epidemic(graph, fr_inf):
@@ -546,14 +708,12 @@ def parse_input_file():
 
 if __name__ == '__main__':
 
-    if sys.argv[1] == "validation":
+    if sys.argv[1] == "validation_1":
         print(sys.argv[1])
-        validation()
-        plot_SEIR_result("validation0")
-    elif sys.argv[1] == "validation1":
+        first_validation(sys.argv[1])
+    elif sys.argv[1] == "validation_2":
         print(sys.argv[1])
-        validation1()
-        plot_SEIR_result("validation1")
+        first_validation(sys.argv[1])
     elif sys.argv[1] == "test":
         graph1 = gm.create_station_graph([1, 2, 3, 4])
         graph2 = gm.create_tube_graph([5, 6, 7, 8])

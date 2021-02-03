@@ -1,0 +1,9 @@
+# If sigma >> 1 the time spent in E is very short.
+# If the number of step is large then the SEIR model become a SIR model.
+n_nodes: 500
+n_days: 500
+beta: 0.01
+sigma: 100
+gamma: 0.01
+fr_inf: 0.02
+step_p_day: 1
