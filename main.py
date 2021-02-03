@@ -209,6 +209,60 @@ def first_validation(validation_type):
     plot_SEIR_result(validation_type)
 
 
+def second_validation(graphic_name):
+    global n_days
+    global clock
+    global n
+    global beta
+    global gamma
+    global sigma
+    global fr_inf
+    global s_list
+    global i_list
+    global r_list
+    global step_p_day
+    global people_tot
+
+    with open("config_files/" + str(graphic_name) + "_input.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        n = data["n_nodes"]  # number of total node
+        n_days = data["n_days"]  # number of days
+        n_days = data["n_days"]
+        beta = data["beta"]
+        sigma = data["sigma"]
+        gamma = data["gamma"]
+        fr_inf = data["fr_inf"]
+        step_p_day = data["step_p_day"]
+        print("\nGraph and Time Parameters: \n")
+        print("Number of Nodes: .......... " + str(n))
+        print("n days: ................... " + str(n_days))
+        print("step per day............... " + str(step_p_day))
+
+        print("\nEpidemic Parameters: \n")
+        print("Beta: ..................... " + str(beta))
+        print("Sigma: .................... " + str(sigma))
+        print("Gamma: .................... " + str(gamma))
+        print("Fract Infected: ........... " + str(fr_inf))
+        print()
+
+    graph = gm.nx.erdos_renyi_graph(n, 0.05)
+    flush_structures()
+    initialize()
+    initialize_Infected()
+    interval_tot = n_days * step_p_day
+    sim_SIR(graph, 0, interval_tot)
+    print_SIR_count()
+    plot_SIR_result(graphic_name + "_" + str(step_p_day) + "_steps")
+    flush_structures()
+    initialize()
+    step_p_day = 1
+    initialize_Infected()
+    interval_tot = n_days
+    sim_SIR(graph, 0, interval_tot)
+    print_SIR_count()
+    plot_SIR_result(graphic_name + "_1_step")
+
+
 def flush_structures():
     global s_list
     global e_list
@@ -256,7 +310,7 @@ def initialize():
 
     random.seed(a=None)
     clock = 0
-    step_p_day = 1  # work_step + home_step
+    # step_p_day = 1  # work_step + home_step
     people_tot = [elm for elm in range(0, n)]
     random.shuffle(people_tot)
     n_inf = int(fr_inf * n)
@@ -336,17 +390,18 @@ def sim_SIR(graph, start_t, end_t):
     global s_t
     global i_t
     global r_t
+    global gamma
+    global beta
 
     gamma1 = gamma * (1 / step_p_day)
-    sigma1 = sigma * (1 / step_p_day)
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-        # print("Istante: "+str(step))
-        s_t.append(len(s_list))
-        e_t.append(len(e_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
+        if (step % step_p_day) == 0:
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
@@ -382,11 +437,11 @@ def sim_SEIR(graph, start_t, end_t):
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-        # print("Istante: "+str(step))
-        s_t.append(len(s_list))
-        e_t.append(len(e_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
+        if (step % step_p_day) == 0:
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
@@ -430,11 +485,11 @@ def sim_SIROld(graph, start_t, end_t):
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-
-        s_t.append(len(s_list))
-        e_t.append(len(e_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
+        if (step % step_p_day) == 0:
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
@@ -714,6 +769,9 @@ if __name__ == '__main__':
     elif sys.argv[1] == "validation_2":
         print(sys.argv[1])
         first_validation(sys.argv[1])
+    elif sys.argv[1] == "validation_3":
+        print(sys.argv[1])
+        second_validation(sys.argv[1])
     elif sys.argv[1] == "test":
         graph1 = gm.create_station_graph([1, 2, 3, 4])
         graph2 = gm.create_tube_graph([5, 6, 7, 8])
