@@ -412,8 +412,8 @@ def sim_SIR(graph, start_t, end_t):
             else:
                 i_list[index][1] -= 1
 
-        for elem in i_list:
-            ngbs = graph.neighbors(elem[0])
+        for index in range(0, len(i_list)):
+            ngbs = graph.neighbors(i_list[index][0])
             for ngb in ngbs:
                 if ngb in s_list:
                     r = random.uniform(0.0, 1.0)
@@ -461,9 +461,8 @@ def sim_SEIR(graph, start_t, end_t):
             else:
                 e_list[index][1] -= 1
         # print("Dopo: " + str(e_list))
-        for elem in i_list:
-            # if elem[0] in part:
-            ngbs = graph.neighbors(elem[0])
+        for index in range(0, len(i_list)):
+            ngbs = graph.neighbors(i_list[index][0])
             for ngb in ngbs:
                 if ngb in s_list:
                     r = random.uniform(0.0, 1.0)
@@ -808,7 +807,7 @@ if __name__ == '__main__':
         i_t = [9, 9, 9]
         r_t = [10, 1, 1]
         fm.write_csv(s_t, e_t, i_t, r_t, 3)
-        [a,b,c,d] = fm.calculate_average_from_csv()
+        [a, b, c, d] = fm.calculate_average_from_csv()
         fm.clear_csv()
         # print(a)
         # print(b)
