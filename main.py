@@ -3,13 +3,14 @@ import random
 import EoN as eon  # not used
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import numpy
+# import numpy
 from itertools import islice
 from random import randint
 import time
 import yaml
 import sys
 import gc
+import file_manager as fm
 
 n = 0  # number of total node
 home_step = 0  # step for days
@@ -733,17 +734,20 @@ def parse_input_file():
     global gamma
     global fr_inf
     global fr_station_user
+    global step_p_day
 
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
         n = data["n_nodes"]  # number of total node
         n_days = data["n_days"]  # number of days
-        fr_station_user = data["fr_station_user"]  # percentage of people that use station
+        fr_station_user = data["fr_station_user"]
+        step_p_day = data["step_p_day"]
 
         print("\nGraph and Time Parameters: \n")
         print("Number of Nodes: .......... " + str(n))
         print("n days: ................... " + str(n_days))
         print("Perc Station User.......... " + str(fr_station_user))
+        print("Step per Day............... " + str(step_p_day))
         print()
 
     with open("config_files/epidemic_parameters.yaml", 'r') as stream:
@@ -787,6 +791,30 @@ if __name__ == '__main__':
         for elem in res1:
             print(elem)
             print(res1.nodes[elem]["graph_name"])
+    elif sys.argv[1] == "write_res":
+        fm.clear_csv()
+        s_t = [3, 5, 8]
+        e_t = [1, 1, 1]
+        i_t = [9, 9, 9]
+        r_t = [10, 1, 1]
+        fm.write_csv(s_t, e_t, i_t, r_t, 1)
+        s_t = [4, 5, 9]
+        e_t = [1, 1, 1]
+        i_t = [3, 5, 8]
+        r_t = [10, 1, 1]
+        fm.write_csv(s_t, e_t, i_t, r_t, 2)
+        s_t = [5, 5, 8]
+        e_t = [1, 5, 1]
+        i_t = [9, 9, 9]
+        r_t = [10, 1, 1]
+        fm.write_csv(s_t, e_t, i_t, r_t, 3)
+        [a,b,c,d] = fm.calculate_average_from_csv()
+        fm.clear_csv()
+        # print(a)
+        # print(b)
+        # print(c)
+        # print(d)
+
     else:
         parse_input_file()
         simulate()
