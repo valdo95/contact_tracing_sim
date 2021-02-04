@@ -38,6 +38,7 @@ families = []  # list of families, each family is a list of nodes
 commuter_partitions = []  # list of list of people that use one specific station
 tube_users = []  # list of list of people that use one specific tube/bus
 clock = 0
+precision_ctrl = True  # if True the simulator choose if the node change state when his trace time is less than 1
 
 
 def generate_partitions(input_list, min_size=1, max_size=6):
@@ -406,7 +407,9 @@ def sim_SIR(graph, start_t, end_t):
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
-            if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
+            if i_list[index][1] <= 0 or (
+                precision_ctrl and i_list[index][1] <= 1 and random.uniform(0, 1) <= i_list[index][
+                1]):  # abbiamo superato la durata dell'infezione generata
                 r_list.append(i_list[index][0])
                 i_list.remove(i_list[index])
             else:
@@ -424,6 +427,57 @@ def sim_SIR(graph, start_t, end_t):
 
 
 def sim_SEIR(graph, start_t, end_t):
+    global s_list
+    global e_list
+    global i_list
+    global r_list
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+
+    gamma1 = gamma * (1 / step_p_day)
+    sigma1 = sigma * (1 / step_p_day)
+    beta1 = beta * (1 / step_p_day)
+
+    for step in range(start_t, end_t):
+        if (step % step_p_day) == 0:
+            s_t.append(len(s_list))
+            e_t.append(len(e_list))
+            i_t.append(len(i_list))
+            r_t.append(len(r_list))
+        # I --> R
+        for index in range(len(i_list) - 1, -1, -1):
+            # if infect[0] in part:
+            if i_list[index][1] <= 0 or (
+                precision_ctrl and i_list[index][1] <= 1 and random.uniform(0, 1) <= i_list[index][1]):
+                r_list.append(i_list[index][0])
+                i_list.remove(i_list[index])
+            else:
+                i_list[index][1] -= 1
+        # E --> I
+        # print("Prima: " + str(e_list))
+        for index in range(len(e_list) - 1, -1, -1):
+            if e_list[index][1] <= 0 or (
+                precision_ctrl and e_list[index][1] <= 1 and random.uniform(0, 1) <= e_list[index][1]):
+                duration_gamma = random.expovariate(gamma1)
+                i_list.append([e_list[index][0], duration_gamma])
+                e_list.remove(e_list[index])
+            else:
+                e_list[index][1] -= 1
+        # print("Dopo: " + str(e_list))
+        for index in range(0, len(i_list)):
+            ngbs = graph.neighbors(i_list[index][0])
+            for ngb in ngbs:
+                if ngb in s_list:
+                    r = random.uniform(0.0, 1.0)
+                    if r < beta1:  # l'infetto contatta il vicino
+                        duration_sigma = random.expovariate(sigma1)
+                        e_list.append([ngb, duration_sigma])
+                        s_list.remove(ngb)
+
+
+def sim_SEIRLessPrec(graph, start_t, end_t):
     global s_list
     global e_list
     global i_list
@@ -469,44 +523,6 @@ def sim_SEIR(graph, start_t, end_t):
                     if r < beta1:  # l'infetto contatta il vicino
                         duration_sigma = random.expovariate(sigma1)
                         e_list.append([ngb, duration_sigma])
-                        s_list.remove(ngb)
-
-
-def sim_SIROld(graph, start_t, end_t):
-    global s_list
-    global i_list
-    global r_list
-    global s_t
-    global i_t
-    global r_t
-
-    gamma1 = gamma * (1 / step_p_day)
-    sigma1 = sigma * (1 / step_p_day)
-    beta1 = beta * (1 / step_p_day)
-
-    for step in range(start_t, end_t):
-        if (step % step_p_day) == 0:
-            s_t.append(len(s_list))
-            e_t.append(len(e_list))
-            i_t.append(len(i_list))
-            r_t.append(len(r_list))
-        # I --> R
-        for index in range(len(i_list) - 1, -1, -1):
-            if i_list[index][1] <= 0:  # abbiamo superato la durata dell'infezione generata
-                r_list.append(i_list[index][0])
-                i_list.remove(i_list[index])
-            else:
-                i_list[index][1] -= 1
-
-        for elem in i_list:
-            # if elem[0] in part:
-            ngbs = graph.neighbors(elem[0])
-            for ngb in ngbs:
-                if ngb in s_list:
-                    r = random.uniform(0.0, 1.0)
-                    if r < beta1:  # l'infetto contatta il vicino
-                        duration_gamma = random.expovariate(gamma1)
-                        i_list.append([elem[0], duration_gamma])
                         s_list.remove(ngb)
 
 
@@ -808,11 +824,10 @@ if __name__ == '__main__':
         r_t = [10, 1, 1]
         fm.write_csv(s_t, e_t, i_t, r_t, 3)
         [a, b, c, d] = fm.calculate_average_from_csv()
-        fm.clear_csv()
-        # print(a)
-        # print(b)
-        # print(c)
-        # print(d)
+        print(a)
+        print(b)
+        print(c)
+        print(d)
 
     else:
         parse_input_file()
