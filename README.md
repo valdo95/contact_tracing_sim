@@ -11,7 +11,7 @@ i contatti che i cittadini hanno durante il giorno in un contesto cittadino.
 
 ```bash
 pip install EoN
-python main.py
+python epidemic_sim.py
 ```
 
 ## License

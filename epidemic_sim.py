@@ -407,9 +407,7 @@ def sim_SIR(graph, start_t, end_t):
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
-            if i_list[index][1] <= 0 or (
-                precision_ctrl and i_list[index][1] <= 1 and random.uniform(0, 1) <= i_list[index][
-                1]):  # abbiamo superato la durata dell'infezione generata
+            if i_list[index][1] <= 0.5:  # abbiamo superato la durata dell'infezione generata
                 r_list.append(i_list[index][0])
                 i_list.remove(i_list[index])
             else:
@@ -449,8 +447,7 @@ def sim_SEIR(graph, start_t, end_t):
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
-            if i_list[index][1] <= 0 or (
-                precision_ctrl and i_list[index][1] <= 1 and random.uniform(0, 1) <= i_list[index][1]):
+            if i_list[index][1] <= 0.5:
                 r_list.append(i_list[index][0])
                 i_list.remove(i_list[index])
             else:
@@ -458,8 +455,7 @@ def sim_SEIR(graph, start_t, end_t):
         # E --> I
         # print("Prima: " + str(e_list))
         for index in range(len(e_list) - 1, -1, -1):
-            if e_list[index][1] <= 0 or (
-                precision_ctrl and e_list[index][1] <= 1 and random.uniform(0, 1) <= e_list[index][1]):
+            if e_list[index][1] <= 0.5:
                 duration_gamma = random.expovariate(gamma1)
                 i_list.append([e_list[index][0], duration_gamma])
                 e_list.remove(e_list[index])
@@ -828,7 +824,9 @@ if __name__ == '__main__':
         print(b)
         print(c)
         print(d)
-
+    elif sys.argv[1] == "test_gr":
+        G1 = gm.create_station_graph([2, 3, 10, 11, 12, 13, 14, 15, 16, 17], 0.2)
+        gm.print_graph_with_labels_and_neighb(G)
     else:
         parse_input_file()
         simulate()
