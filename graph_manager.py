@@ -6,7 +6,7 @@ import time
 
 def remapping_nodes(graph, nodes_list):
     mapping = dict(zip(list(graph), nodes_list))
-    res = nx.relabel_nodes(graph, mapping, copy=True) # make a copy is more efficient, but You have to clear old graph
+    res = nx.relabel_nodes(graph, mapping, copy=True)  # make a copy is more efficient, but You have to clear old graph
     graph.clear()
     return res
 
@@ -110,5 +110,3 @@ def print_graph_with_labels_and_neighb(graph):
     for elem in graph.nodes:
         print("Id: " + str(elem) + "     Graph Name: " + str(
             graph.nodes[elem]["graph_name"]) + "    Neighbs List: " + str(list(nx.neighbors(graph, elem))))
-
-

@@ -1,0 +1,5 @@
+# OUTPUT FILE
+st_path: "output/s_t.csv"
+et_path: "output/e_t.csv"
+it_path: "output/i_t.csv"
+rt_path: "output/r_t.csv"

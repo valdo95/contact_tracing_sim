@@ -1,11 +1,19 @@
 import csv
+import yaml
+
+
+def get_path_files():
+    with open("config_files/path_files.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        return data["st_path"], data["et_path"], data["it_path"], data["rt_path"]
 
 
 def write_csv(s_t, e_t, i_t, r_t, col):
-    st_file = open('output/s_t.csv', 'a')
-    et_file = open('output/e_t.csv', 'a')
-    it_file = open('output/i_t.csv', 'a')
-    rt_file = open('output/r_t.csv', 'a')
+    [st_path, et_path, it_path, rt_path] = get_path_files()
+    st_file = open(st_path, 'a')
+    et_file = open(et_path, 'a')
+    it_file = open(it_path, 'a')
+    rt_file = open(rt_path, 'a')
     with st_file:
         writer = csv.writer(st_file)
         writer.writerow(s_t)
@@ -22,10 +30,11 @@ def write_csv(s_t, e_t, i_t, r_t, col):
 
 
 def calculate_average_from_csv():
-    st_file = open('output/s_t.csv', 'r')
-    et_file = open('output/e_t.csv', 'r')
-    it_file = open('output/i_t.csv', 'r')
-    rt_file = open('output/r_t.csv', 'r')
+    [st_path, et_path, it_path, rt_path] = get_path_files()
+    st_file = open(st_path, 'r')
+    et_file = open(et_path, 'r')
+    it_file = open(it_path, 'r')
+    rt_file = open(rt_path, 'r')
     st_avg = []
     et_avg = []
     it_avg = []
@@ -77,9 +86,10 @@ def calculate_average_from_csv():
 
 
 def clear_csv():
-    st_file = open('output/s_t.csv', 'w+')
-    et_file = open('output/e_t.csv', 'w+')
-    it_file = open('output/i_t.csv', 'w+')
-    rt_file = open('output/r_t.csv', 'w+')
+    [st_path, et_path, it_path, rt_path] = get_path_files()
+    st_file = open(st_path, 'w+')
+    et_file = open(et_path, 'w+')
+    it_file = open(it_path, 'w+')
+    rt_file = open(rt_path, 'w+')
 
     print("Files have been cleared")

@@ -1,4 +1,11 @@
 n_nodes: 1000
 n_days: 20
-fr_station_user: 0.5
+fr_students: 0.5
+fr_employees: 0.5
 step_p_day: 1
+min_family_size: 1
+max_familiy_size: 6
+min_school_size: 100
+max_school_size: 700
+min_office_size: 200
+max_office_size: 290
