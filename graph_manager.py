@@ -1,51 +1,69 @@
 import networkx as nx
 import matplotlib.pyplot as ml
 import random
+import time
 
 
-def create_school_graph(nodes_list, density=0.05):
-    graph = nx.erdos_renyi_graph(len(nodes_list), density)
+def remapping_nodes(graph, nodes_list):
     mapping = dict(zip(list(graph), nodes_list))
-    print(nodes_list)
-    print(mapping)
-    return nx.relabel_nodes(graph, mapping, copy=False)
+    res = nx.relabel_nodes(graph, mapping, copy=True) # make a copy is more efficient, but You have to clear old graph
+    graph.clear()
+    return res
 
 
-def create_work_graph(nodes_list, density=0.30):
+def set_graph_name(graph, name):
+    type_graph = []
+    nx.set_node_attributes(graph, type_graph, "graph_name")
+    type_graph.append(name)
+
+
+def create_school_graph(nodes_list, density=0.2):
+    graph_name = "school"
     graph = nx.erdos_renyi_graph(len(nodes_list), density)
-    mapping = dict(zip(list(graph), nodes_list))
-    print(nodes_list)
-    print(mapping)
-    return nx.relabel_nodes(graph, mapping, copy=False)
+    res = remapping_nodes(graph, nodes_list)
+    set_graph_name(res, graph_name)
+    return res
+
+
+def create_office_graph(nodes_list, density=0.1):
+    graph_name = "office"
+    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    res = remapping_nodes(graph, nodes_list)
+    set_graph_name(res, graph_name)
+    return res
 
 
 def create_home_graph(nodes_list):
+    graph_name = "home"
     graph = nx.complete_graph(len(nodes_list))
-    mapping = dict(zip(list(graph), nodes_list))
-    res = nx.relabel_nodes(graph, mapping, copy=True)
-    type_graph = []
-    nx.set_node_attributes(res, type_graph, "graph_name")
-    type_graph.append("home")
+    res = remapping_nodes(graph, nodes_list)
+    set_graph_name(res, graph_name)
     return res
 
 
-def create_station_graph(nodes_list, density=0.1):
+def create_station_graph(nodes_list, density=0.05):
+    graph_name = "station"
+    # print("Start generation graph... ")
+    # start_time = time.time()
     graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
-    mapping = dict(zip(list(graph), nodes_list))
-    res = nx.relabel_nodes(graph, mapping, copy=True)
-    type_graph = []
-    nx.set_node_attributes(res, type_graph, "graph_name")
-    type_graph.append("station")
+    # end_time = time.time()
+    # duration = round((end_time - start_time), 3)
+    # print("duration erdos reni: " + str(duration) + " Seconds")
+    # start_time = time.time()
+    # print("Start relabeling... ")
+    res = remapping_nodes(graph, nodes_list)
+    # end_time = time.time()
+    # duration = round((end_time - start_time), 3)
+    # print("duration relabeling: " + str(duration) + " Seconds")
+    set_graph_name(res, graph_name)
     return res
 
 
-def create_tube_graph(nodes_list, density=0.2):
+def create_public_transport_graph(nodes_list, density=0.2):
+    graph_name = "public_transport"
     graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
-    mapping = dict(zip(list(graph), nodes_list))
-    res = nx.relabel_nodes(graph, mapping, copy=True)
-    type_graph = []
-    nx.set_node_attributes(res, type_graph, "graph_name")
-    type_graph.append("tube")
+    res = remapping_nodes(graph, nodes_list)
+    set_graph_name(res, graph_name)
     return res
 
 
@@ -78,7 +96,7 @@ def print_graph(graph, name):
     print("graph nodes: ")
     print(sorted(list(graph)))
     nx.draw_circular(graph)
-    # nx.draw_networkx_edge_labels(graph)
+    # nx.draw_netofficex_edge_labels(graph)
     ml.savefig(name + "graph.png")
     ml.close()
 
@@ -93,33 +111,4 @@ def print_graph_with_labels_and_neighb(graph):
         print("Id: " + str(elem) + "     Graph Name: " + str(
             graph.nodes[elem]["graph_name"]) + "    Neighbs List: " + str(list(nx.neighbors(graph, elem))))
 
-# def create_home_graph(n):
-#     graph = nx.Graph()
-#     for i in range(0, n):
-#         graph.add_node(i)
-#     for elem in graph:
-#         for nb in graph:
-#             graph.add_edge(elem, nb)
-#     print("home graph")
-#     return graph
 
-
-# def create_school_graph_old(n):
-#     density = 0.10
-#     graph = nx.erdos_renyi_graph(n, density)
-#     return graph
-#
-#
-# def create_work_graph(n):
-#     density = 0.10
-#     graph = nx.erdos_renyi_graph(n, density)
-#     return graph
-#
-#
-# def create_station_graph(n):
-#     density = 0.10
-#     graph = nx.erdos_renyi_graph(n, density)
-#     for (u, v, w) in graph.edges(data=True):
-#         w['weight'] = random.randint(0, 10)
-#
-#     return graph

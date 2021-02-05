@@ -36,7 +36,7 @@ r_t = []  # number of recovered/isolated/dead for each step
 people_tot = []  # array of nodes
 families = []  # list of families, each family is a list of nodes
 commuter_partitions = []  # list of list of people that use one specific station
-tube_users = []  # list of list of people that use one specific tube/bus
+public_transport_users = []  # list of list of people that use one specific public_transport/bus
 clock = 0
 precision_ctrl = True  # if True the simulator choose if the node change state when his trace time is less than 1
 
@@ -58,8 +58,8 @@ def create_partions():
     random.shuffle(people_tot)
     n_station_user = int(fr_station_user * n)
     station_partitions = list(generate_partitions(people_tot[:n_station_user], 20, 100))
-    tube_partitions = list(generate_partitions(people_tot[n_station_user:], 5, 40))
-    return [station_partitions, tube_partitions]
+    public_transport_partitions = list(generate_partitions(people_tot[n_station_user:], 5, 40))
+    return [station_partitions, public_transport_partitions]
 
 
 def validation_0():
@@ -297,7 +297,7 @@ def initialize():
     global people_tot
     global families
     global commuter_partitions
-    global tube_users
+    global public_transport_users
 
     global s_list
     global e_list
@@ -359,16 +359,16 @@ def simulate():
     global families
 
     station_partitions = []
-    tube_partitions = []
+    public_transport_partitions = []
     initialize()
-    station_partitions, tube_partitions = create_partions()
+    station_partitions, public_transport_partitions = create_partions()
     start_time = time.time()
     graph = gm.nx.Graph()
     for elm in station_partitions:
         temp = gm.create_station_graph(elm)
         graph = gm.nx.union(graph, temp)
-    for elm in tube_partitions:
-        temp = gm.create_tube_graph(elm)
+    for elm in public_transport_partitions:
+        temp = gm.create_public_transport_graph(elm)
         graph = gm.nx.union(graph, temp)
 
     initialize_Infected()
@@ -789,7 +789,7 @@ if __name__ == '__main__':
         second_validation(sys.argv[1])
     elif sys.argv[1] == "test":
         graph1 = gm.create_station_graph([1, 2, 3, 4])
-        graph2 = gm.create_tube_graph([5, 6, 7, 8])
+        graph2 = gm.create_public_transport_graph([5, 6, 7, 8])
         # elem = graph1.nodes[1]["graph_name"]
         res = gm.nx.union(graph1, graph2)
         for elem in res:
@@ -825,8 +825,13 @@ if __name__ == '__main__':
         print(c)
         print(d)
     elif sys.argv[1] == "test_gr":
-        G1 = gm.create_station_graph([2, 3, 10, 11, 12, 13, 14, 15, 16, 17], 0.2)
-        gm.print_graph_with_labels_and_neighb(G)
+        # G1 = gm.create_station_graph([elem for elem in range(80, 130)], 0.2)
+        # G1 = gm.create_public_transport_graph([elem for elem in range(80, 130)], 0.2)
+        # G1 = gm.create_office_graph([elem for elem in range(80, 130)], 0.2)
+        # G1 = gm.create_home_graph([8,2,3,4,5])
+        G1 = gm.create_school_graph([elem for elem in range(80, 130)], 0.2)
+
+        gm.print_graph_with_labels_and_neighb(G1)
     else:
         parse_input_file()
         simulate()
