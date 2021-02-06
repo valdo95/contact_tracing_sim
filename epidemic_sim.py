@@ -66,6 +66,51 @@ def generate_partitions(input_list, min_size=1, max_size=6):
             break
 
 
+def compare_with_EON(comparison_type):
+    global n
+    global n_days
+    global beta
+    global gamma
+    global n_inf
+    global step_p_day
+    with open("config_files/" + str(comparison_type) + "_input.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        n = data["n_nodes"]  # number of total node
+        n_days = data["n_days"]  # number of days
+        beta = data["beta"]
+        gamma = data["gamma"]
+        fr_inf = data["fr_inf"]
+        step_p_day = data["step_p_day"]
+        print("\nGraph and Time Parameters: \n")
+        print("Number of Nodes: .......... " + str(n))
+        print("n days: ................... " + str(n_days))
+        print("Step per Day............... " + str(step_p_day))
+
+        print("\nEpidemic Parameters: \n")
+        print("Beta: ..................... " + str(beta))
+        print("Gamma: .................... " + str(gamma))
+        print("Fract Infected: ........... " + str(fr_inf))
+        print()
+
+    # gamma = 1 - numpy.nextafter(1., 0.)
+    # sigma = 50  # sys.maxsize #genero numero molto grande
+    n_inf = int(fr_inf * n)
+    flush_structures()
+    initialize()
+    initialize_infected()
+    graph = gm.nx.erdos_renyi_graph(n, 0.2)
+    #print("Start EON Simulation")
+    epidemic(graph, n_days)
+    # print("End EON Simulation")
+    flush_structures()
+    initialize()
+    initialize_infected()
+    print("Start sim_SIR Simulation")
+    sim_SIR(graph, 0, n_days * step_p_day)
+    print("End sim_SIR Simulation")
+    plot_SIR_result("comparison_sim")
+
+
 def create_partions():
     global people_tot
     global fr_station_user
@@ -251,11 +296,12 @@ def create_families_network():
 def create_school_work_network():
     global school_partitions
     global office_partitions
+    random.shuffle(people_tot)
     office_partitions = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
     school_partitions = list(
         generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
-    print(office_partitions)
-    print(school_partitions)
+    print("office partitions: " + str(office_partitions))
+    print("school partitions: " + str(school_partitions))
 
 
 def initialize():
@@ -315,30 +361,36 @@ def simulate():
     initialize_infected()
     print("Infetti iniziali")
     print(i_list)
-    # SIMULAZIONE PRIMO CICLO
-    day = 100
-    create_families_network()
-    temp_graphs = []
-    for family in families:
-        temp_graphs.append(gm.create_home_graph(family))
-    fam_gr = gm.nx.union_all(temp_graphs)
-    for index in range(0, 50, 5):
-        sim_SEIR(fam_gr, 0, day)
-    print("Infetti finali")
-    for elem in i_list:
-        print(elem[0])
+    # # SIMULAZIONE PRIMO CICLO
+    # day = 100
+    # create_families_network()
+    # temp_graphs = []
+    # for family in families:
+    #     temp_graphs.append(gm.create_home_graph(family))
+    # fam_gr = gm.nx.union_all(temp_graphs)
+    # for index in range(0, 50, 5):
+    #     sim_SEIR(fam_gr, 0, day)
+    # print("Infetti finali")
+    # for elem in i_list:
+    #     print(elem[0])
 
     # SIMULAZIONE SECONDO CICLO
     create_school_work_network()
     temp_graphs = []
     for office in office_partitions:
-        temp_graphs.append(gm.create_office_graph(office))
+        temp_graphs.append(gm.create_office_graph(office, 0.3))
     for school in school_partitions:
-        temp_graphs.append(gm.create_school_graph(school))
+        temp_graphs.append(gm.create_school_graph(school, 0.3))
     office_school_tot = gm.nx.union_all(temp_graphs)
-    sim_SEIR(office_school_tot, 0, day)
+    sim_SEIR(office_school_tot, 0, 50)
     plot_SEIR_result("prova1")
     print_SEIR_count()
+    # flush_structures()
+    # initialize()
+    # initialize_infected()
+    # sim_SEIR(gm.nx.erdos_renyi_graph(500, 0.13), 0, 50)
+    # print_SEIR_count()
+    # input()
     # fam_gr.clear()
     # for elem in graphs:
     #     gm.print_graph_with_labels_and_neighb(elem)
@@ -391,11 +443,11 @@ def sim_SIR(graph, start_t, end_t):
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-        if (step % step_p_day) == 0:
-            s_t.append(len(s_list))
-            e_t.append(len(e_list))
-            i_t.append(len(i_list))
-            r_t.append(len(r_list))
+        # if (step % step_p_day) == 0:
+        s_t.append(len(s_list))
+        e_t.append(len(e_list))
+        i_t.append(len(i_list))
+        r_t.append(len(r_list))
         # I --> R
         for index in range(len(i_list) - 1, -1, -1):
             # if infect[0] in part:
@@ -410,7 +462,7 @@ def sim_SIR(graph, start_t, end_t):
             for ngb in ngbs:
                 if ngb in s_list:
                     r = random.uniform(0.0, 1.0)
-                    if r < beta1:  # l'infetto contatta il vicino
+                    if r < beta1:  # CONTAGIO
                         duration_gamma = random.expovariate(gamma1)
                         i_list.append([ngb, duration_gamma])
                         s_list.remove(ngb)
@@ -431,11 +483,11 @@ def sim_SEIR(graph, start_t, end_t):
     beta1 = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
-        if (step % step_p_day) == 0:
-            s_t.append(len(s_list))
-            e_t.append(len(e_list))
-            i_t.append(len(i_list))
-            r_t.append(len(r_list))
+
+        s_t.append(len(s_list))
+        e_t.append(len(e_list))
+        i_t.append(len(i_list))
+        r_t.append(len(r_list))
 
         for index in range(len(i_list) - 1, -1, -1):
             # I --> R
@@ -555,7 +607,7 @@ def print_list():
 def plot_SIR_result(filename):
     time = []
     for i in range(0, len(s_t)):
-        time.append(i + 1)
+        time.append(i / step_p_day)
     # list_time_new = np.linspace(min(time), max(time), 1000)
     plt.plot(time, s_t, color='blue')
     plt.plot(time, i_t, color='red')
@@ -580,7 +632,7 @@ def plot_SIR_result(filename):
 def plot_SEIR_result(filename):
     time = []
     for i in range(0, len(s_t)):
-        time.append(i + 1)
+        time.append(i/step_p_day)
     # list_time_new = np.linspace(min(time), max(time), 1000)
     plt.plot(time, s_t, color='blue')
     plt.plot(time, e_t, color='orange')
@@ -615,17 +667,15 @@ def count_SEIR():
     r_t.append(len(r_list))
 
 
-def epidemic(graph, fr_inf):
-    mu = 0.002
-    beta = 0.3
+def epidemic(graph, n_days):
+    global beta
+    mu = gamma
 
     # scelgo random gli infetti iniziali
     list_nodes = list(graph.nodes())
     random.shuffle(list_nodes)
-    initial_infections = list_nodes[0:fr_inf]
-
-    print('Start SIR...')
-    sim = eon.fast_SIR(graph, beta, mu, initial_infecteds=initial_infections, tmax=40, return_full_data=True)
+    initial_infections = list_nodes[0:n_inf]
+    sim = eon.fast_SIR(graph, beta, mu, initial_infecteds=initial_infections, tmax=n_days, return_full_data=True)
     t = sim.t()
     S = sim.S()  # numero suscettibili ad ogni istante
     I = sim.I()  # numero infetti ad ogni istante
@@ -636,23 +686,19 @@ def epidemic(graph, fr_inf):
     i_per = I[-1] / len(graph.nodes()) * 100
 
     # Print Result
-
-    print('S: ' + str(s_per) + '%\n' + 'I: ' + str(i_per) + '%\n' + 'R: ' + str(r_per) + '%\n')
-    # plt.plot(t, S, label='S')
-    # plt.plot(t, I, label='I')
-    # plt.plot(t, R, label='R')
-    # plt.legend()
-    # plt.savefig('beta_' + str(beta) + ' ' + 'mu_' + str(mu) + '_SIR.png')
-    # plt.close()
-
-    print('done\n')
-    print('animation...')
-    ani = sim.animate(ts_plots=['I', 'SIR'], node_size=4)
-    # writer = animation.PillowWriter('fps=2')
-    # ani.save('SIR.mp4',writer=Writer,fps=5, extra_args=['-vcodec', 'libx264'])
-    ani.save('beta_' + str(beta) + ' ' + 'mu_' + str(mu) + ' SIR.gif')
+    plt.plot(t, S, label='S')
+    plt.plot(t, I, label='I')
+    plt.plot(t, R, label='R')
+    plt.legend()
+    plt.savefig('img/comparison_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + '_SIR.png')
     plt.close()
-    print('done\n')
+
+    # print('animation...')
+    # ani = sim.animate(ts_plots=['I', 'SIR'], node_size=4)
+    # writer = animation.PillowWriter('fps=2')
+    # # ani.save('SIR.mp4',writer=Writer,fps=5, extra_args=['-vcodec', 'libx264'])
+    # ani.save('compare_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + ' SIR.gif')
+    plt.close()
 
 
 def change_grained():
@@ -805,6 +851,8 @@ if __name__ == '__main__':
     elif sys.argv[1] == "simulate":
         parse_input_file()
         simulate()
+    elif sys.argv[1] == "compare":
+        compare_with_EON("comparison")
     else:
         parse_input_file()
         initialize()

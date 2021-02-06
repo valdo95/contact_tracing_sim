@@ -1,4 +1,4 @@
-beta: 0.03
-sigma: 0.01
-gamma: 0.002
-fr_inf: 0.1
+beta: 0.01
+sigma: 0.3
+gamma: 0.1
+fr_inf: 0.01
