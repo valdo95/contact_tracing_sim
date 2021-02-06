@@ -20,6 +20,8 @@ sigma = 0  # transition rate from E to I
 gamma = 0  # transition rate from I to R
 fr_inf = 0  # number of initial infected
 step_p_day = 0  # number of step per day
+n_step_home = 0  # number of step at home
+n_step_work = 0  # number of step at work/school
 fr_station_user = 0  # fraction of people that use train station
 
 # COUNTS
@@ -46,9 +48,6 @@ r_t = []  # number of recovered/isolated/dead for each step
 
 people_tot = []  # array of nodes  NON SERVE!
 traced_people = []  # One entry for eah person: The values are 0 -> S, 1 -> Isolated, 2 -> in quarantine
-families = []  # list of families, each family is a list of nodes
-school_partitions = []  # list of students grouped by school
-office_partitions = []  # list of employees grouped by office
 
 commuter_partitions = []  # list of list of people that use one specific station
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
@@ -99,7 +98,7 @@ def compare_with_EON(comparison_type):
     initialize()
     initialize_infected()
     graph = gm.nx.erdos_renyi_graph(n, 0.2)
-    #print("Start EON Simulation")
+    # print("Start EON Simulation")
     epidemic(graph, n_days)
     # print("End EON Simulation")
     flush_structures()
@@ -286,22 +285,28 @@ def flush_structures():
 
 
 def create_families_network():
-    global families
-    random.shuffle(people_tot)
     random.shuffle(people_tot)
     families = list(generate_partitions(people_tot, min_family_size, max_familiy_size))
-    print("families: " + str(families))
+    # print("families: " + str(families))
+    temp_graphs = []
+    for family in families:
+        temp_graphs.append(gm.create_home_graph(family))
+    return gm.nx.union_all(temp_graphs)
 
 
 def create_school_work_network():
-    global school_partitions
-    global office_partitions
     random.shuffle(people_tot)
     office_partitions = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
     school_partitions = list(
         generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
-    print("office partitions: " + str(office_partitions))
-    print("school partitions: " + str(school_partitions))
+    # print("office partitions: " + str(office_partitions))
+    # print("school partitions: " + str(school_partitions))
+    temp_graphs = []
+    for office in office_partitions:
+        temp_graphs.append(gm.create_office_graph(office, 0.3))
+    for school in school_partitions:
+        temp_graphs.append(gm.create_school_graph(school, 0.3))
+    return gm.nx.union_all(temp_graphs)
 
 
 def initialize():
@@ -361,28 +366,18 @@ def simulate():
     initialize_infected()
     print("Infetti iniziali")
     print(i_list)
-    # # SIMULAZIONE PRIMO CICLO
-    # day = 100
-    # create_families_network()
-    # temp_graphs = []
-    # for family in families:
-    #     temp_graphs.append(gm.create_home_graph(family))
-    # fam_gr = gm.nx.union_all(temp_graphs)
-    # for index in range(0, 50, 5):
-    #     sim_SEIR(fam_gr, 0, day)
-    # print("Infetti finali")
-    # for elem in i_list:
-    #     print(elem[0])
+    fam_graph = create_families_network()
+    office_school_graph = create_school_work_network()
+    for day in range(0, n_days):
+        print("day " + str(day))
+        # SIMULAZIONE PRIMO CICLO
+        sim_SEIR(fam_graph, day, day + n_step_home)
 
-    # SIMULAZIONE SECONDO CICLO
-    create_school_work_network()
-    temp_graphs = []
-    for office in office_partitions:
-        temp_graphs.append(gm.create_office_graph(office, 0.3))
-    for school in school_partitions:
-        temp_graphs.append(gm.create_school_graph(school, 0.3))
-    office_school_tot = gm.nx.union_all(temp_graphs)
-    sim_SEIR(office_school_tot, 0, 50)
+        # SIMULAZIONE SECONDO CICLO
+
+
+        sim_SEIR(office_school_graph, day + n_step_home, day + n_step_home + n_step_work)
+
     plot_SEIR_result("prova1")
     print_SEIR_count()
     # flush_structures()
@@ -400,7 +395,7 @@ def simulate_1():
     global n_days
     global clock
     global step_p_day
-    global families
+
 
     station_partitions = []
     public_transport_partitions = []
@@ -632,7 +627,7 @@ def plot_SIR_result(filename):
 def plot_SEIR_result(filename):
     time = []
     for i in range(0, len(s_t)):
-        time.append(i/step_p_day)
+        time.append(i / step_p_day)
     # list_time_new = np.linspace(min(time), max(time), 1000)
     plt.plot(time, s_t, color='blue')
     plt.plot(time, e_t, color='orange')
@@ -746,13 +741,17 @@ def parse_input_file():
     global max_office_size
 
     global step_p_day
+    global n_step_home
+    global n_step_work
     global n_days
 
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
         n = data["n_nodes"]  # number of total node
         n_days = data["n_days"]  # number of days
-        step_p_day = data["step_p_day"]
+        # step_p_day = data["step_p_day"]
+        n_step_home = data["n_step_home"]
+        n_step_work = data["n_step_work"]
         n_stud = int(data["fr_students"] * n)
         n_employs = int(data["fr_employees"] * n)
         min_family_size = data["min_family_size"]
@@ -761,11 +760,14 @@ def parse_input_file():
         max_school_size = data["max_school_size"]
         min_office_size = data["min_office_size"]
         max_office_size = data["max_office_size"]
+        step_p_day = n_step_home + n_step_work
 
         print("\nGraph and Time Parameters: \n")
         print("Number of Nodes: .......... " + str(n))
         print("n days: ................... " + str(n_days))
-        print("Step per Day............... " + str(step_p_day))
+        print("Step per day............... " + str(step_p_day))
+        print("Step spent at home......... " + str(n_step_home))
+        print("Step spent at work......... " + str(n_step_work))
         print("Number of Students: ....... " + str(n_stud))
         print("Number of Employee: ....... " + str(n_employs))
         print()
@@ -785,6 +787,7 @@ def parse_input_file():
         print("Gamma: .................... " + str(gamma))
         print("Number Initial Infected: .. " + str(n_inf))
         print()
+        step_p_day = n_step_home + n_step_work
 
 
 if __name__ == '__main__':

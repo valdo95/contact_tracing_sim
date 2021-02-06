@@ -1,11 +1,13 @@
-n_nodes: 1000
-n_days: 20
+n_nodes: 5000
+n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
-step_p_day: 1
+# step_p_day: 4
+n_step_home: 2
+n_step_work: 2
 min_family_size: 1
 max_familiy_size: 6
-min_school_size: 500
-max_school_size: 500
-min_office_size: 500
-max_office_size: 500
+min_school_size: 80
+max_school_size: 300
+min_office_size: 10
+max_office_size: 20
