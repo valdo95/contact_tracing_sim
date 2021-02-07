@@ -5,3 +5,4 @@ sigma: 0.03
 gamma: 0.02
 fr_inf: 0.02
 step_p_day: 12
+seed: 0

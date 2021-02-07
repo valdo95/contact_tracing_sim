@@ -7,3 +7,4 @@ sigma: 100
 gamma: 0.0001
 fr_inf: 0.02
 step_p_day: 1
+seed: 1

@@ -17,17 +17,17 @@ def set_graph_name(graph, name):
     type_graph.append(name)
 
 
-def create_school_graph(nodes_list, density=0.2):
+def create_school_graph(nodes_list, density=0.2, rg=None):
     graph_name = "school"
-    graph = nx.erdos_renyi_graph(len(nodes_list), density)
+    graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)
     res = remapping_nodes(graph, nodes_list)
     set_graph_name(res, graph_name)
     return res
 
 
-def create_office_graph(nodes_list, density=0.1):
+def create_office_graph(nodes_list, density=0.1, rg=None):
     graph_name = "office"
-    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     res = remapping_nodes(graph, nodes_list)
     set_graph_name(res, graph_name)
     return res
@@ -41,11 +41,11 @@ def create_home_graph(nodes_list):
     return res
 
 
-def create_station_graph(nodes_list, density=0.05):
+def create_station_graph(nodes_list, density=0.05, rg=None):
     graph_name = "station"
     # print("Start generation graph... ")
     # start_time = time.time()
-    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     # end_time = time.time()
     # duration = round((end_time - start_time), 3)
     # print("duration erdos reni: " + str(duration) + " Seconds")
@@ -59,9 +59,9 @@ def create_station_graph(nodes_list, density=0.05):
     return res
 
 
-def create_public_transport_graph(nodes_list, density=0.2):
+def create_public_transport_graph(nodes_list, density=0.2, rg=None):
     graph_name = "public_transport"
-    graph = nx.erdos_renyi_graph(len(nodes_list), density)  # watts_strogatz_graph(len(nodes_list), 3, density)
+    graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     res = remapping_nodes(graph, nodes_list)
     set_graph_name(res, graph_name)
     return res
