@@ -3,13 +3,16 @@ n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
 # step_p_day: 4
-n_step_home: 2
-n_step_work: 2
+n_step_home: 6
+n_step_work: 4
+n_step_transp: 2
 min_family_size: 1
 max_familiy_size: 6
 min_school_size: 80
 max_school_size: 300
 min_office_size: 10
 max_office_size: 20
+min_transp_size: 10
+max_transp_size: 20
 # if seed == 0 viene settato da SO
 seed: 0

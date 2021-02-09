@@ -22,6 +22,7 @@ fr_inf = 0  # number of initial infected
 step_p_day = 0  # number of step per day
 n_step_home = 0  # number of step at home
 n_step_work = 0  # number of step at work/school
+n_step_transp = 0 # number of step on public transport
 fr_station_user = 0  # fraction of people that use train station
 initial_seed = 0
 rg1 = None
@@ -37,6 +38,8 @@ min_school_size = 0
 max_school_size = 0
 min_office_size = 0
 max_office_size = 0
+min_transp_size = 0
+max_transp_size = 0
 
 s_list = []  # list of susceptible nodes
 e_list = []  # list of exposed nodes
@@ -309,6 +312,16 @@ def create_families_network():
     return gm.nx.union_all(temp_graphs)
 
 
+def create_transport_network():
+    rg1.shuffle(people_tot)
+    transp_part = list(generate_partitions(people_tot, min_transp_size, max_transp_size))
+    # print("families: " + str(families))
+    temp_graphs = []
+    for bus in transp_part:
+        temp_graphs.append(gm.create_public_transport_graph(bus))
+    return gm.nx.union_all(temp_graphs)
+
+
 def create_school_work_network():
     rg1.shuffle(people_tot)
     office_partitions = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
@@ -323,11 +336,14 @@ def create_school_work_network():
         temp_graphs.append(gm.create_school_graph(school, 0.3))
     return gm.nx.union_all(temp_graphs)
 
+
 def set_random_stream():
     if initial_seed != 0:
         return random.Random(initial_seed)
     else:
-       return random.Random()
+        return random.Random()
+
+
 def initialize():
     global clock
     global fr_inf
@@ -390,17 +406,24 @@ def simulate():
     start_time = time.time()
     fam_graph = create_families_network()
     office_school_graph = create_school_work_network()
+    transp_graph = create_transport_network()
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     print("Duration Graph Creation: " + str(duration) + " Seconds")
     start_time = time.time()
     for day in range(0, n_days):
         print("day " + str(day))
-        # SIMULAZIONE PRIMO CICLO
-        sim_SEIR(fam_graph, day, day + n_step_home)
-
-        # SIMULAZIONE SECONDO CICLO
-        sim_SEIR(office_school_graph, day + n_step_home, day + n_step_home + n_step_work)
+        # HOME
+        end_1 = day + n_step_home
+        sim_SEIR(fam_graph, day, end_1)
+        # TRANSP
+        end_2 = int(end_1 + (n_step_transp/2))
+        sim_SEIR(transp_graph, end_1, end_2 )
+        # WORK
+        end_3 = end_2 + n_step_work
+        sim_SEIR(office_school_graph, end_2, end_3)
+        # WORK
+        sim_SEIR(transp_graph,end_3, int(end_3+(n_step_transp/2)))
 
     end_time = time.time()
     duration = round((end_time - start_time), 3)
@@ -767,10 +790,13 @@ def parse_input_file():
     global max_school_size
     global min_office_size
     global max_office_size
+    global min_transp_size
+    global max_transp_size
 
     global step_p_day
     global n_step_home
     global n_step_work
+    global n_step_transp
     global n_days
     global initial_seed
 
@@ -781,6 +807,7 @@ def parse_input_file():
         # step_p_day = data["step_p_day"]
         n_step_home = data["n_step_home"]
         n_step_work = data["n_step_work"]
+        n_step_transp = data["n_step_transp"]
         n_stud = int(data["fr_students"] * n)
         n_employs = int(data["fr_employees"] * n)
         min_family_size = data["min_family_size"]
@@ -789,8 +816,10 @@ def parse_input_file():
         max_school_size = data["max_school_size"]
         min_office_size = data["min_office_size"]
         max_office_size = data["max_office_size"]
+        min_transp_size = data["min_transp_size"]
+        max_transp_size = data["max_transp_size"]
         initial_seed = data["seed"]
-        step_p_day = n_step_home + n_step_work
+        step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")
         print("Number of Nodes: .......... " + str(n))
