@@ -14,5 +14,6 @@ min_office_size: 10
 max_office_size: 20
 min_transp_size: 10
 max_transp_size: 20
+fr_app_users: 0.5
 # if seed == 0 viene settato da SO
 seed: 0
