@@ -62,7 +62,7 @@ def create_station_graph(nodes_list, density=0.05, rg=None):
 def create_public_transport_graph(nodes_list, density=0.2, rg=None):
     graph_name = "public_transport"
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
-    res = remapping_nodes(graph, nodes_list)
+    res = remapping_nodes(graph, sorted(nodes_list))
     set_graph_name(res, graph_name)
     return res
 
