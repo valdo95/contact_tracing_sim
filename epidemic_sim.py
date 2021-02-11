@@ -29,7 +29,9 @@ fr_station_user = 0  # fraction of people that use train station
 fr_symptomatic = 0  # fraction of symptomatic
 initial_seed = 0
 rg1 = None
-
+fam_graph = None
+office_school_graph = None
+transp_graph = None
 # COUNTS
 n = 0  # number of total node
 n_inf = 0  # number of initial infected
@@ -570,16 +572,21 @@ def initialize_seir():
 
 
 def simulate_tracing():
+    global fam_graph
+    global office_school_graph
+    global transp_graph
+
     initialize_tracing()
     start_time = time.time()
     fam_graph = create_families_network()
     update_contact_list(fam_graph, 1)
     office_school_graph = create_school_work_network()
-    update_contact_list(office_school_graph,1)
-    #update_contact_list(office_school_graph, 1)
+    # loc_contact(office_school_graph, 2)
+    update_contact_list(office_school_graph, 1)
+    # update_contact_list(office_school_graph, 1)
     transp_graph = create_transport_network()
-    #gm.print_graph_with_labels_and_neighb(transp_graph)
-    update_contact_list(transp_graph,1)
+    # gm.print_graph_with_labels_and_neighb(transp_graph)
+    update_contact_list(transp_graph, 1)
     # print_contact_list()
     # input()
     end_time = time.time()
@@ -594,11 +601,17 @@ def simulate_tracing():
         sim_seir_tracing(fam_graph, day, end_1)
         # TRANSP
         end_2 = int(end_1 + (n_step_transp / 2))
+        transp_graph = create_transport_network()
+        # gm.print_graph_with_labels_and_neighb(transp_graph)
+        update_contact_list(transp_graph, 1)
         sim_seir_tracing(transp_graph, end_1, end_2)
         # WORK
         end_3 = end_2 + n_step_work
         sim_seir_tracing(office_school_graph, end_2, end_3)
         # TRANSP
+        transp_graph = create_transport_network()
+        # gm.print_graph_with_labels_and_neighb(transp_graph)
+        update_contact_list(transp_graph, 1)
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
 
     end_time = time.time()
@@ -663,7 +676,7 @@ def print_contact_list():
 
 
 def get_statistic_seir_tracing():
-    count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r
+    count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_q
     # print(seir_list)
     for elem in seir_list:
         count[elem] += 1
@@ -686,6 +699,15 @@ def get_statistic_sir():
     return count
 
 
+# def loc_contact(inf):
+#     transp_graph
+#     node_list = dict(office_school_graph.nodes(data="school"))
+#     if node_list[inf][0] == "public_transport":
+#         r = rg1.uniform(0.0,1.0)
+#         if r<pr_notification:
+#             seir_list[inf] = 5
+#             res_time_list[inf] = n_days_quar * step_p_day
+
 def set_contagion(inf):
     global seir_list
     global res_time_list
@@ -697,6 +719,11 @@ def set_contagion(inf):
             if app_people[elem[0]]:
                 seir_list[elem[0]] = 5
                 res_time_list[elem[0]] = n_days_quar * step_p_day
+        if app_people[inf]:
+            stop = int(pr_notification * len(contact_list[inf]))
+            for index in range(0, stop):
+                seir_list[contact_list[inf][index][0]] = 5
+                res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
     else:
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
@@ -730,13 +757,19 @@ def update_node_contacts(node, list_2, timestamp):
 
 
 def update_contact_list(graph, timestamp, g_is_sorted=False):
-    for elem in graph.nodes:
+    for elem in graph.nodes(data="graph_name"):
+        el = list(elem)
+        node_id = el[0]
+        g_name = el[1][0]
+        # print(node_id)
+        # print(g_name)
+        # input()
         if g_is_sorted:
-            nbs = list(gm.nx.neighbors(graph, elem))
+            nbs = list(gm.nx.neighbors(graph, node_id))
         else:
-            nbs = sorted(list(gm.nx.neighbors(graph, elem)))
-        update_node_contacts(elem, nbs , timestamp)
-        #print(list(gm.nx.neighbors(graph, elem)))
+            nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
+        update_node_contacts(node_id, nbs, timestamp)
+        # print(list(gm.nx.neighbors(graph, elem)))
     # gc.collect()
 
 
@@ -858,7 +891,7 @@ def sim_SEIR_old(graph, start_t, end_t):
 
     gamma = gamma * (1 / step_p_day)
     sigma = sigma * (1 / step_p_day)
-    beta = beta * (1 / step_p_day)
+    #beta = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
 
@@ -1228,7 +1261,7 @@ if __name__ == '__main__':
 
         graph = gm.nx.erdos_renyi_graph(15, 0.1)
         contact_list = [[] for elem in range(0, 15)]
-        update_contact_list(graph,1)
+        update_contact_list(graph, 1)
         graph = gm.nx.erdos_renyi_graph(15, 0.1)
         update_contact_list(graph, 2)
 
