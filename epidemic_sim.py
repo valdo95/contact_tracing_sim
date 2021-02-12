@@ -42,6 +42,8 @@ n_app_users = 0  # number of people with the app
 pr_diagnosis = 0  # Prob of been diagnosed
 pr_notification = 0  # Prob of receive a Notification
 
+window_size = 0 # Size of the contact window
+
 # Partitons size
 min_family_size = 0
 max_familiy_size = 0
@@ -579,14 +581,14 @@ def simulate_tracing():
     initialize_tracing()
     start_time = time.time()
     fam_graph = create_families_network()
-    update_contact_list(fam_graph, 1)
+    update_contact_list(fam_graph, 0)
     office_school_graph = create_school_work_network()
     # loc_contact(office_school_graph, 2)
-    update_contact_list(office_school_graph, 1)
+    update_contact_list(office_school_graph, 0)
     # update_contact_list(office_school_graph, 1)
     transp_graph = create_transport_network()
     # gm.print_graph_with_labels_and_neighb(transp_graph)
-    update_contact_list(transp_graph, 1)
+    update_contact_list(transp_graph, 0)
     # print_contact_list()
     # input()
     end_time = time.time()
@@ -603,7 +605,7 @@ def simulate_tracing():
         end_2 = int(end_1 + (n_step_transp / 2))
         transp_graph = create_transport_network()
         # gm.print_graph_with_labels_and_neighb(transp_graph)
-        update_contact_list(transp_graph, 1)
+        update_contact_list(transp_graph, day)
         sim_seir_tracing(transp_graph, end_1, end_2)
         # WORK
         end_3 = end_2 + n_step_work
@@ -611,9 +613,12 @@ def simulate_tracing():
         # TRANSP
         transp_graph = create_transport_network()
         # gm.print_graph_with_labels_and_neighb(transp_graph)
-        update_contact_list(transp_graph, 1)
+        update_contact_list(transp_graph, day)
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
-
+        update_contact_list(transp_graph, day)
+        update_contact_list(office_school_graph, day)
+        if day%window_size == 0:
+            delete_old_contacts(day)
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     print("Duration SEIR Simulation: " + str(duration) + " Seconds")
@@ -728,6 +733,14 @@ def set_contagion(inf):
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
 
+
+def delete_old_contacts(curr_time):
+    print("del")
+    old_time = curr_time-window_size
+    for node_contacts in contact_list:
+        for elem in node_contacts:
+            if elem[1] < old_time:
+                node_contacts.remove(elem)
 
 def update_node_contacts(node, list_2, timestamp):
     global contact_list
@@ -1124,6 +1137,7 @@ def parse_input_file():
     global sigma
     global gamma
 
+    global window_size
     global n
     global n_inf
     global n_stud
@@ -1174,6 +1188,7 @@ def parse_input_file():
         initial_seed = data["seed"]
         pr_diagnosis = data["pr_diagnosis"]
         pr_notification = data["pr_notification"]
+        window_size = data["window_size"]
         step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")

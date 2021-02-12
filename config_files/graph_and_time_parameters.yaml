@@ -19,3 +19,4 @@ pr_diagnosis: 0.5
 pr_notification: 0.0
 # if seed == 0 viene settato da SO
 seed: 0
+window_size: 14
