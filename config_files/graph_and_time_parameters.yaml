@@ -1,4 +1,4 @@
-n_nodes: 1000
+n_nodes: 300
 n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
@@ -18,5 +18,5 @@ fr_app_users: 0.3
 pr_diagnosis: 0.5
 pr_notification: 0.0
 # if seed == 0 viene settato da SO
-seed: 0
+seed: 1
 window_size: 14

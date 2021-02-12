@@ -42,7 +42,7 @@ n_app_users = 0  # number of people with the app
 pr_diagnosis = 0  # Prob of been diagnosed
 pr_notification = 0  # Prob of receive a Notification
 
-window_size = 0 # Size of the contact window
+window_size = 0  # Size of the contact window
 
 # Partitons size
 min_family_size = 0
@@ -74,6 +74,8 @@ contact_list = []  # [ngb, timestamp] contact list
 
 # commuter_partitions = []  # list of list of people that use one specific station
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
+
+graph_ext = ["Transport", "school", "Office", "Families"]
 
 
 def set_random_stream():
@@ -111,7 +113,9 @@ def create_families_network():
     temp_graphs = []
     for family in families:
         temp_graphs.append(gm.create_home_graph(family))
-    return gm.nx.union_all(temp_graphs)
+    res = gm.nx.union_all(temp_graphs)
+    res.name = "Families"
+    return res
 
 
 def create_transport_network():
@@ -120,8 +124,10 @@ def create_transport_network():
     # print("families: " + str(families))
     temp_graphs = []
     for bus in transp_part:
-        temp_graphs.append(gm.create_public_transport_graph(bus))
-    return gm.nx.union_all(temp_graphs)
+        temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1))
+    res = gm.nx.union_all(temp_graphs)
+    res.name = "Transport"
+    return res
 
 
 def create_school_work_network():
@@ -133,10 +139,15 @@ def create_school_work_network():
     # print("school partitions: " + str(school_partitions))
     temp_graphs = []
     for office in office_partitions:
-        temp_graphs.append(gm.create_office_graph(office, 0.3))
+        temp_graphs.append(gm.create_office_graph(office, 0.3, rg=rg1))
+    office_graphs = gm.nx.union_all(temp_graphs)
+    office_graphs.name = "Office"
+    temp_graphs = []
     for school in school_partitions:
-        temp_graphs.append(gm.create_school_graph(school, 0.3))
-    return gm.nx.union_all(temp_graphs)
+        temp_graphs.append(gm.create_school_graph(school, 0.3, rg=rg1))
+    school_graphs = gm.nx.union_all(temp_graphs)
+    school_graphs.name = "School"
+    return office_graphs, school_graphs
 
 
 def compare_with_EON(comparison_type):
@@ -582,15 +593,12 @@ def simulate_tracing():
     start_time = time.time()
     fam_graph = create_families_network()
     update_contact_list(fam_graph, 0)
-    office_school_graph = create_school_work_network()
-    # loc_contact(office_school_graph, 2)
-    update_contact_list(office_school_graph, 0)
-    # update_contact_list(office_school_graph, 1)
+    [office_graphs, school_graphs] = create_school_work_network()
+    update_contact_list(office_graphs, 0, True)
+    update_contact_list(school_graphs, 0, True)
+    office_school_graph = gm.nx.union(office_graphs, school_graphs)
     transp_graph = create_transport_network()
-    # gm.print_graph_with_labels_and_neighb(transp_graph)
-    update_contact_list(transp_graph, 0)
-    # print_contact_list()
-    # input()
+    update_contact_list(transp_graph, 0, True)
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     gc.collect()
@@ -603,22 +611,31 @@ def simulate_tracing():
         sim_seir_tracing(fam_graph, day, end_1)
         # TRANSP
         end_2 = int(end_1 + (n_step_transp / 2))
+        transp_graph.clear()
         transp_graph = create_transport_network()
-        # gm.print_graph_with_labels_and_neighb(transp_graph)
-        update_contact_list(transp_graph, day)
+        update_contact_list(transp_graph, day, True)
+        gc.collect()
         sim_seir_tracing(transp_graph, end_1, end_2)
         # WORK
         end_3 = end_2 + n_step_work
         sim_seir_tracing(office_school_graph, end_2, end_3)
         # TRANSP
+        transp_graph.clear()
         transp_graph = create_transport_network()
-        # gm.print_graph_with_labels_and_neighb(transp_graph)
-        update_contact_list(transp_graph, day)
+        update_contact_list(transp_graph, day, True)
+        update_contact_list(office_graphs, day, True)
+        update_contact_list(school_graphs, day, True)
+        gc.collect()
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
-        update_contact_list(transp_graph, day)
-        update_contact_list(office_school_graph, day)
-        if day%window_size == 0:
+        if day % window_size == 0:
             delete_old_contacts(day)
+        # print_contact_list()
+        # max = 0
+        # for elem in contact_list:
+        #     if len(elem)>max:
+        #         max = len(elem)
+        # print(max)
+
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     print("Duration SEIR Simulation: " + str(duration) + " Seconds")
@@ -726,9 +743,15 @@ def set_contagion(inf):
                 res_time_list[elem[0]] = n_days_quar * step_p_day
         if app_people[inf]:
             stop = int(pr_notification * len(contact_list[inf]))
+            # print(contact_list[inf])
             for index in range(0, stop):
-                seir_list[contact_list[inf][index][0]] = 5
-                res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+                if contact_list[inf][index][2] >= 0:
+                    seir_list[contact_list[inf][index][0]] = 5
+                    res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+                else:
+                    print("problema!")
+                    print(contact_list[inf][index])
+                    input()
     else:
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
@@ -736,44 +759,67 @@ def set_contagion(inf):
 
 def delete_old_contacts(curr_time):
     print("del")
-    old_time = curr_time-window_size
+    old_time = curr_time - window_size
     for node_contacts in contact_list:
         for elem in node_contacts:
+            if elem[2] < old_time:
+                elem[2] = 0
             if elem[1] < old_time:
                 node_contacts.remove(elem)
 
-def update_node_contacts(node, list_2, timestamp):
+
+def update_node_contacts(node, list_2, timestamp, check):
     global contact_list
     i = 0
     j = 0
     res = []
     while i < len(contact_list[node]) and j < len(list_2):
         if contact_list[node][i][0] < list_2[j]:
-            res.append([contact_list[node][i][0], contact_list[node][i][1]])
+            if check:
+                res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
+            else:
+                res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
             i += 1
-        elif contact_list[node][i][0] == list_2[j]:  # elimino doppioni
-            res.append([contact_list[node][i][0], timestamp])
+        elif contact_list[node][i][0] == list_2[j]:  # doppioni
+            if check:
+                res.append([contact_list[node][i][0], timestamp, timestamp])
+            elif contact_list[node][i][2] >= 0:
+                res.append([contact_list[node][i][0], timestamp, contact_list[node][i][2]])
+            else:
+                res.append([contact_list[node][i][0], timestamp, -1])
             j += 1
             i += 1
-        else:
-            res.append([list_2[j], timestamp])
+        else:  # aggiungo contatto
+            if check:
+                res.append([list_2[j], timestamp, timestamp])
+            else:
+                res.append([list_2[j], timestamp, -1])
             j += 1
     # Elementi rimasti
     while i < len(contact_list[node]):
-        res.append([contact_list[node][i][0], contact_list[node][i][1]])
+        if check:
+            res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
+        else:
+            res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
         i += 1
     while j < len(list_2):
-        res.append([list_2[j], timestamp])
+        if check:
+            res.append([list_2[j], timestamp, timestamp])
+        else:
+            res.append([list_2[j], timestamp, -1])
         j += 1
     contact_list[node].clear()
     contact_list[node] = res
 
 
 def update_contact_list(graph, timestamp, g_is_sorted=False):
-    for elem in graph.nodes(data="graph_name"):
-        el = list(elem)
-        node_id = el[0]
-        g_name = el[1][0]
+    check = False
+    for elem in graph_ext:
+        if elem == graph.name:
+            check = True
+            # print("AHHHHHHHHHHHHH\n")
+    for node_id in graph.nodes():
+        # g_name = el[1][0]
         # print(node_id)
         # print(g_name)
         # input()
@@ -781,7 +827,7 @@ def update_contact_list(graph, timestamp, g_is_sorted=False):
             nbs = list(gm.nx.neighbors(graph, node_id))
         else:
             nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
-        update_node_contacts(node_id, nbs, timestamp)
+        update_node_contacts(node_id, nbs, timestamp, check)
         # print(list(gm.nx.neighbors(graph, elem)))
     # gc.collect()
 
@@ -904,7 +950,7 @@ def sim_SEIR_old(graph, start_t, end_t):
 
     gamma = gamma * (1 / step_p_day)
     sigma = sigma * (1 / step_p_day)
-    #beta = beta * (1 / step_p_day)
+    # beta = beta * (1 / step_p_day)
 
     for step in range(start_t, end_t):
 

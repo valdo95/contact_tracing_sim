@@ -17,19 +17,21 @@ def set_graph_name(graph, name):
     type_graph.append(name)
 
 
-def create_school_graph(nodes_list, density=0.2, rg=None):
+def create_school_graph(nodes_list, density=0.4, rg=None):
     graph_name = "school"
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)
-    res = remapping_nodes(graph, nodes_list)
-    set_graph_name(res, graph_name)
+    res = remapping_nodes(graph, sorted(nodes_list))
+    graph.name = "School"
+    #set_graph_name(res, graph_name)
     return res
 
 
-def create_office_graph(nodes_list, density=0.1, rg=None):
+def create_office_graph(nodes_list, density=0.3, rg=None):
     graph_name = "office"
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
-    res = remapping_nodes(graph, nodes_list)
-    set_graph_name(res, graph_name)
+    res = remapping_nodes(graph, sorted(nodes_list))
+    graph.name = "Office"
+    #set_graph_name(res, graph_name)
     return res
 
 
@@ -37,7 +39,8 @@ def create_home_graph(nodes_list):
     graph_name = "home"
     graph = nx.complete_graph(len(nodes_list))
     res = remapping_nodes(graph, nodes_list)
-    set_graph_name(res, graph_name)
+    graph.name = "Home"
+    #set_graph_name(res, graph_name)
     return res
 
 
@@ -52,10 +55,11 @@ def create_station_graph(nodes_list, density=0.05, rg=None):
     # start_time = time.time()
     # print("Start relabeling... ")
     res = remapping_nodes(graph, nodes_list)
+    graph.name = "Station"
     # end_time = time.time()
     # duration = round((end_time - start_time), 3)
     # print("duration relabeling: " + str(duration) + " Seconds")
-    set_graph_name(res, graph_name)
+    #set_graph_name(res, graph_name)
     return res
 
 
@@ -63,7 +67,8 @@ def create_public_transport_graph(nodes_list, density=0.2, rg=None):
     graph_name = "public_transport"
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     res = remapping_nodes(graph, sorted(nodes_list))
-    set_graph_name(res, graph_name)
+    graph.name = "Transport"
+    #set_graph_name(res, graph_name)
     return res
 
 
@@ -109,4 +114,4 @@ def print_graph_with_labels(graph):
 def print_graph_with_labels_and_neighb(graph):
     for elem in graph.nodes:
         print("Id: " + str(elem) + "     Graph Name: " + str(
-            graph.nodes[elem]["graph_name"]) + "    Neighbs List: " + str(list(nx.neighbors(graph, elem))))
+            "-") + "    Neighbs List: " + str(list(nx.neighbors(graph, elem))))
