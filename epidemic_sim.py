@@ -69,13 +69,21 @@ r_t = []  # number of recovered/isolated/dead for each step
 
 people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
-contact_list = []  # [ngb, timestamp] contact list
+contact_list = []  # [ngb, timestamp1, timestamp2] contact list
+contact_matrix = []  # [ngb, timestamp1, timestamp2] contact list
 # people_status = []  # One entry for each person: 0 -> S, value > 0 --> value represent the residue time in quarantine o isolation
 
 # commuter_partitions = []  # list of list of people that use one specific station
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
 
-graph_ext = ["Transport", "school", "Office", "Families"]
+graph_ext = ["Transport", "School", "Office", "Families"]  # "Transport", "School","Office","Families"
+
+office_partion = []
+school_partition = []
+transp_partition = []
+
+is_sparse = False
+low_precision_loc = False
 
 
 def set_random_stream():
@@ -493,6 +501,188 @@ def flush_structures():
 #     print(fr_symptomatic)
 
 
+
+
+def get_statistic_seir_tracing():
+    count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_q
+    # print(seir_list)
+    for elem in seir_list:
+        count[elem] += 1
+    return count
+
+
+def get_statistic_seir():
+    count = [0, 0, 0, 0]  # n_s, n_e, n_i, n_r
+    # print(seir_list)
+    for elem in seir_list:
+        count[elem] += 1
+    return count
+
+
+def get_statistic_sir():
+    count = [0, 0, 0]  # n_s, n_i, n_r
+    # print(sir_list)
+    for elem in sir_list:
+        count[elem] += 1
+    return count
+
+
+# def loc_contact(inf):
+#     transp_graph
+#     node_list = dict(office_school_graph.nodes(data="school"))
+#     if node_list[inf][0] == "public_transport":
+#         r = rg1.uniform(0.0,1.0)
+#         if r<pr_notification:
+#             seir_list[inf] = 5
+#             res_time_list[inf] = n_days_quar * step_p_day
+
+def set_contagion(inf):
+    global seir_list
+    global res_time_list
+    r1 = rg1.uniform(0.0, 1.0)
+    if r1 < pr_diagnosis:
+        seir_list[inf] = 4
+        res_time_list[inf] = n_days_isol * step_p_day
+        if is_sparse:
+            for elem in contact_list[inf]:
+                if app_people[elem[0]]:
+                    seir_list[elem[0]] = 5
+                    res_time_list[elem[0]] = n_days_quar * step_p_day
+        else:
+            i = 0
+            while i < inf:
+                if contact_matrix[inf][i][0] >= 0 and app_people[i]:
+                    seir_list[i] = 5
+                    res_time_list[i] = n_days_quar * step_p_day
+                i += 1
+            i += 1
+            while i < n:
+                if contact_matrix[i][inf][0] >= 0 and app_people[i]:
+                    seir_list[i] = 5
+                    res_time_list[i] = n_days_quar * step_p_day
+                i += 1
+
+        if app_people[inf]:
+            if is_sparse:
+                stop = int(pr_notification * len(contact_list[inf]))
+                # print(contact_list[inf])
+                for index in range(0, stop):
+                    if contact_list[inf][index][2] >= 0:
+                        seir_list[contact_list[inf][index][0]] = 5
+                        res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+            else:
+                i = 0
+                while i < inf:
+                    if contact_matrix[inf][i][1] >= 0:
+                        seir_list[i] = 5
+                        res_time_list[i] = n_days_quar * step_p_day
+                    i += 1
+                i += 1
+                while i < n:
+                    if contact_matrix[i][inf][1] >= 0:
+                        seir_list[i] = 5
+                        res_time_list[i] = n_days_quar * step_p_day
+                    i += 1
+
+    else:
+        seir_list[inf] = 2
+        res_time_list[inf] = rg1.expovariate(gamma)
+
+
+def delete_old_contacts(curr_time):
+    global contact_list
+    global contact_matrix
+    print("del")
+    old_time = curr_time - window_size
+    if is_sparse:
+        for node_contacts in contact_list:
+            for elem in node_contacts:
+                if elem[2] < old_time:
+                    elem[2] = 0
+                if elem[1] < old_time:
+                    node_contacts.remove(elem)
+    else:
+        for line in contact_matrix:
+            for index in range(0, len(line)):
+                if line[index][0] < old_time:
+                    line[index] = [-1, -1]
+
+
+def update_node_contacts(node, list_2, timestamp, check):
+    global contact_list
+    global contact_matrix
+    i = 0
+    j = 0
+    res = []
+    while i < len(contact_list[node]) and j < len(list_2):
+        if contact_list[node][i][0] < list_2[j]:
+            if check:
+                res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
+            else:
+                res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
+            i += 1
+        elif contact_list[node][i][0] == list_2[j]:  # doppioni
+            if check:
+                res.append([contact_list[node][i][0], timestamp, timestamp])
+            elif contact_list[node][i][2] >= 0:
+                res.append([contact_list[node][i][0], timestamp, contact_list[node][i][2]])
+            else:
+                res.append([contact_list[node][i][0], timestamp, -1])
+            j += 1
+            i += 1
+        else:  # aggiungo contatto
+            if check:
+                res.append([list_2[j], timestamp, timestamp])
+            else:
+                res.append([list_2[j], timestamp, -1])
+            j += 1
+    # Elementi rimasti
+    while i < len(contact_list[node]):
+        if check:
+            res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
+        else:
+            res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
+        i += 1
+    while j < len(list_2):
+        if check:
+            res.append([list_2[j], timestamp, timestamp])
+        else:
+            res.append([list_2[j], timestamp, -1])
+        j += 1
+    contact_list[node].clear()
+    contact_list[node] = res
+
+
+def update_contacts(graph, timestamp, g_is_sorted=False):
+    check = False
+    for elem in graph_ext:
+        if elem == graph.name:
+            check = True
+    for node_id in graph.nodes():
+        if is_sparse:
+            if g_is_sorted:
+                nbs = list(gm.nx.neighbors(graph, node_id))
+            else:
+                nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
+            update_node_contacts(node_id, nbs, timestamp, check)
+        else:
+            for ngb in gm.nx.neighbors(graph, node_id):
+                if check:
+                    if ngb < node_id:
+                        contact_matrix[node_id][ngb] = [timestamp, timestamp]
+                    else:
+                        contact_matrix[ngb][node_id] = [timestamp, timestamp]
+                else:
+                    if ngb < node_id:
+                        contact_matrix[node_id][ngb] = [timestamp, -1]
+                    else:
+                        contact_matrix[ngb][node_id] = [timestamp, -1]
+
+        # input()
+        # print(str(node_id)+str(list(gm.nx.neighbors(graph, node_id))))
+        # input()
+
+
 def initialize_tracing():
     global people_tot
     global seir_list
@@ -502,6 +692,7 @@ def initialize_tracing():
     global gamma
     global sigma
     global beta
+    global contact_matrix
 
     global rg1
 
@@ -514,15 +705,18 @@ def initialize_tracing():
     seir_list = [0 for elm in range(0, n)]
     res_time_list = [0 for elm in range(0, n)]
     app_people = [False for elem in range(0, n)]
-    contact_list = [[] for elem in range(0, n)]
-
+    if is_sparse:
+        contact_list = [[] for elem in range(0, n)]
+    else:
+        contact_matrix = [[[-1, -1] for elem in range(0, index)] for index in range(0, n)]  # Matrice triangolare
     rg1.shuffle(people_tot)
     initial_i = [el for el in people_tot[:n_inf]]
     rg1.shuffle(people_tot)
     for pr in people_tot[:n_app_users]:
         app_people[pr] = True
     for inf in initial_i:
-        set_contagion(inf)
+        seir_list[inf] = 2
+        res_time_list[inf] = rg1.expovariate(gamma)
 
 
 def initialize_sir():
@@ -592,13 +786,13 @@ def simulate_tracing():
     initialize_tracing()
     start_time = time.time()
     fam_graph = create_families_network()
-    update_contact_list(fam_graph, 0)
+    update_contacts(fam_graph, 0)
     [office_graphs, school_graphs] = create_school_work_network()
-    update_contact_list(office_graphs, 0, True)
-    update_contact_list(school_graphs, 0, True)
+    update_contacts(office_graphs, 0, True)
+    update_contacts(school_graphs, 0, True)
     office_school_graph = gm.nx.union(office_graphs, school_graphs)
     transp_graph = create_transport_network()
-    update_contact_list(transp_graph, 0, True)
+    update_contacts(transp_graph, 0, True)
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     gc.collect()
@@ -613,7 +807,7 @@ def simulate_tracing():
         end_2 = int(end_1 + (n_step_transp / 2))
         transp_graph.clear()
         transp_graph = create_transport_network()
-        update_contact_list(transp_graph, day, True)
+        update_contacts(transp_graph, day, True)
         gc.collect()
         sim_seir_tracing(transp_graph, end_1, end_2)
         # WORK
@@ -622,9 +816,9 @@ def simulate_tracing():
         # TRANSP
         transp_graph.clear()
         transp_graph = create_transport_network()
-        update_contact_list(transp_graph, day, True)
-        update_contact_list(office_graphs, day, True)
-        update_contact_list(school_graphs, day, True)
+        update_contacts(transp_graph, day, True)
+        update_contacts(office_graphs, day, True)
+        update_contacts(school_graphs, day, True)
         gc.collect()
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
         if day % window_size == 0:
@@ -635,6 +829,10 @@ def simulate_tracing():
         #     if len(elem)>max:
         #         max = len(elem)
         # print(max)
+    if is_sparse:
+        print_contact_list()
+    else:
+        print_contact_matrix()
 
     end_time = time.time()
     duration = round((end_time - start_time), 3)
@@ -646,14 +844,14 @@ def simulate_tracing():
 
 def simulate():
     initialize_seir()
-    print_seir_list()
-    print(pr_notification)
-    print(pr_diagnosis)
-    print(app_people)
-    input()
+    # print_seir_list()
+    # print(pr_notification)
+    # print(pr_diagnosis)
+    # print(app_people)
     start_time = time.time()
     fam_graph = create_families_network()
-    office_school_graph = create_school_work_network()
+    [office_g, school_g] = create_school_work_network()
+    office_school_graph = gm.nx.union(office_g, school_g)
     transp_graph = create_transport_network()
     end_time = time.time()
     duration = round((end_time - start_time), 3)
@@ -666,11 +864,13 @@ def simulate():
         sim_seir(fam_graph, day, end_1)
         # TRANSP
         end_2 = int(end_1 + (n_step_transp / 2))
+        transp_graph = create_transport_network()
         sim_seir(transp_graph, end_1, end_2)
         # WORK
         end_3 = end_2 + n_step_work
         sim_seir(office_school_graph, end_2, end_3)
-        # WORK
+        # TRANSP
+        transp_graph = create_transport_network()
         sim_seir(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
 
     end_time = time.time()
@@ -688,148 +888,6 @@ def simulate():
     # fam_gr.clear()
     # for elem in graphs:
     #     gm.print_graph_with_labels_and_neighb(elem)
-
-
-def print_contact_list():
-    index = 0
-    for elem in contact_list:
-        print("Nodo " + str(index) + ": " + str(elem))
-        index += 1
-
-
-def get_statistic_seir_tracing():
-    count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_q
-    # print(seir_list)
-    for elem in seir_list:
-        count[elem] += 1
-    return count
-
-
-def get_statistic_seir():
-    count = [0, 0, 0, 0]  # n_s, n_e, n_i, n_r
-    # print(seir_list)
-    for elem in seir_list:
-        count[elem] += 1
-    return count
-
-
-def get_statistic_sir():
-    count = [0, 0, 0]  # n_s, n_i, n_r
-    # print(sir_list)
-    for elem in sir_list:
-        count[elem] += 1
-    return count
-
-
-# def loc_contact(inf):
-#     transp_graph
-#     node_list = dict(office_school_graph.nodes(data="school"))
-#     if node_list[inf][0] == "public_transport":
-#         r = rg1.uniform(0.0,1.0)
-#         if r<pr_notification:
-#             seir_list[inf] = 5
-#             res_time_list[inf] = n_days_quar * step_p_day
-
-def set_contagion(inf):
-    global seir_list
-    global res_time_list
-    r1 = rg1.uniform(0.0, 1.0)
-    if r1 < pr_diagnosis:
-        seir_list[inf] = 4
-        res_time_list[inf] = n_days_isol * step_p_day
-        for elem in contact_list[inf]:
-            if app_people[elem[0]]:
-                seir_list[elem[0]] = 5
-                res_time_list[elem[0]] = n_days_quar * step_p_day
-        if app_people[inf]:
-            stop = int(pr_notification * len(contact_list[inf]))
-            # print(contact_list[inf])
-            for index in range(0, stop):
-                if contact_list[inf][index][2] >= 0:
-                    seir_list[contact_list[inf][index][0]] = 5
-                    res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
-                else:
-                    print("problema!")
-                    print(contact_list[inf][index])
-                    input()
-    else:
-        seir_list[inf] = 2
-        res_time_list[inf] = rg1.expovariate(gamma)
-
-
-def delete_old_contacts(curr_time):
-    print("del")
-    old_time = curr_time - window_size
-    for node_contacts in contact_list:
-        for elem in node_contacts:
-            if elem[2] < old_time:
-                elem[2] = 0
-            if elem[1] < old_time:
-                node_contacts.remove(elem)
-
-
-def update_node_contacts(node, list_2, timestamp, check):
-    global contact_list
-    i = 0
-    j = 0
-    res = []
-    while i < len(contact_list[node]) and j < len(list_2):
-        if contact_list[node][i][0] < list_2[j]:
-            if check:
-                res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
-            else:
-                res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
-            i += 1
-        elif contact_list[node][i][0] == list_2[j]:  # doppioni
-            if check:
-                res.append([contact_list[node][i][0], timestamp, timestamp])
-            elif contact_list[node][i][2] >= 0:
-                res.append([contact_list[node][i][0], timestamp, contact_list[node][i][2]])
-            else:
-                res.append([contact_list[node][i][0], timestamp, -1])
-            j += 1
-            i += 1
-        else:  # aggiungo contatto
-            if check:
-                res.append([list_2[j], timestamp, timestamp])
-            else:
-                res.append([list_2[j], timestamp, -1])
-            j += 1
-    # Elementi rimasti
-    while i < len(contact_list[node]):
-        if check:
-            res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
-        else:
-            res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
-        i += 1
-    while j < len(list_2):
-        if check:
-            res.append([list_2[j], timestamp, timestamp])
-        else:
-            res.append([list_2[j], timestamp, -1])
-        j += 1
-    contact_list[node].clear()
-    contact_list[node] = res
-
-
-def update_contact_list(graph, timestamp, g_is_sorted=False):
-    check = False
-    for elem in graph_ext:
-        if elem == graph.name:
-            check = True
-            # print("AHHHHHHHHHHHHH\n")
-    for node_id in graph.nodes():
-        # g_name = el[1][0]
-        # print(node_id)
-        # print(g_name)
-        # input()
-        if g_is_sorted:
-            nbs = list(gm.nx.neighbors(graph, node_id))
-        else:
-            nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
-        update_node_contacts(node_id, nbs, timestamp, check)
-        # print(list(gm.nx.neighbors(graph, elem)))
-    # gc.collect()
 
 
 def sim_sir(graph, start_t, end_t):
@@ -938,93 +996,93 @@ def sim_seir_tracing(graph, start_t, end_t):
                 seir_list[index] = 3
 
 
-def sim_SEIR_old(graph, start_t, end_t):
-    global s_list
-    global e_list
-    global i_list
-    global r_list
-    global s_t
-    global e_t
-    global i_t
-    global r_t
+# def sim_SEIR_old(graph, start_t, end_t):
+#     global s_list
+#     global e_list
+#     global i_list
+#     global r_list
+#     global s_t
+#     global e_t
+#     global i_t
+#     global r_t
+#
+#     gamma = gamma * (1 / step_p_day)
+#     sigma = sigma * (1 / step_p_day)
+#     # beta = beta * (1 / step_p_day)
+#
+#     for step in range(start_t, end_t):
+#
+#         s_t.append(len(s_list))
+#         e_t.append(len(e_list))
+#         i_t.append(len(i_list))
+#         r_t.append(len(r_list))
+#
+#         for index in range(len(i_list) - 1, -1, -1):
+#             # I --> R
+#             if i_list[index][1] <= 0.5:
+#                 r_list.append(i_list[index][0])
+#                 i_list.remove(i_list[index])
+#             else:
+#                 i_list[index][1] -= 1
+#         # print("Prima: " + str(e_list))
+#         for index in range(len(e_list) - 1, -1, -1):
+#             # E --> I
+#             if e_list[index][1] <= 0.5:
+#                 duration_gamma = rg1.expovariate(gamma)
+#                 i_list.append([e_list[index][0], duration_gamma])
+#                 e_list.remove(e_list[index])
+#             else:
+#                 e_list[index][1] -= 1
+#         for index in range(0, len(i_list)):
+#             ngbs = graph.neighbors(i_list[index][0])
+#             for ngb in ngbs:
+#                 if ngb in s_list:
+#                     r = rg1.uniform(0.0, 1.0)
+#                     # S --> E
+#                     if r < beta:
+#                         duration_sigma = rg1.expovariate(sigma)
+#                         e_list.append([ngb, duration_sigma])
+#                         s_list.remove(ngb)
 
-    gamma = gamma * (1 / step_p_day)
-    sigma = sigma * (1 / step_p_day)
-    # beta = beta * (1 / step_p_day)
-
-    for step in range(start_t, end_t):
-
-        s_t.append(len(s_list))
-        e_t.append(len(e_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
-
-        for index in range(len(i_list) - 1, -1, -1):
-            # I --> R
-            if i_list[index][1] <= 0.5:
-                r_list.append(i_list[index][0])
-                i_list.remove(i_list[index])
-            else:
-                i_list[index][1] -= 1
-        # print("Prima: " + str(e_list))
-        for index in range(len(e_list) - 1, -1, -1):
-            # E --> I
-            if e_list[index][1] <= 0.5:
-                duration_gamma = rg1.expovariate(gamma)
-                i_list.append([e_list[index][0], duration_gamma])
-                e_list.remove(e_list[index])
-            else:
-                e_list[index][1] -= 1
-        for index in range(0, len(i_list)):
-            ngbs = graph.neighbors(i_list[index][0])
-            for ngb in ngbs:
-                if ngb in s_list:
-                    r = rg1.uniform(0.0, 1.0)
-                    # S --> E
-                    if r < beta:
-                        duration_sigma = rg1.expovariate(sigma)
-                        e_list.append([ngb, duration_sigma])
-                        s_list.remove(ngb)
-
-
-def sim_SIR_old(graph, start_t, end_t):
-    global s_list
-    global i_list
-    global r_list
-    global s_t
-    global i_t
-    global r_t
-    global gamma
-    global beta
-    global step_p_day
-
-    gamma = gamma * (1 / step_p_day)
-    beta = beta * (1 / step_p_day)
-
-    for step in range(start_t, end_t):
-        # if (step % step_p_day) == 0:
-        s_t.append(len(s_list))
-        e_t.append(len(e_list))
-        i_t.append(len(i_list))
-        r_t.append(len(r_list))
-        # I --> R
-        for index in range(len(i_list) - 1, -1, -1):
-            # if infect[0] in part:
-            if i_list[index][1] <= 0.5:  # abbiamo superato la durata dell'infezione generata
-                r_list.append(i_list[index][0])
-                i_list.remove(i_list[index])
-            else:
-                i_list[index][1] -= 1
-
-        for index in range(0, len(i_list)):
-            ngbs = graph.neighbors(i_list[index][0])
-            for ngb in ngbs:
-                if ngb in s_list:
-                    r = rg1.uniform(0.0, 1.0)
-                    if r < beta:  # CONTAGIO
-                        duration_gamma = rg1.expovariate(gamma)
-                        i_list.append([ngb, duration_gamma])
-                        s_list.remove(ngb)
+#
+# def sim_SIR_old(graph, start_t, end_t):
+#     global s_list
+#     global i_list
+#     global r_list
+#     global s_t
+#     global i_t
+#     global r_t
+#     global gamma
+#     global beta
+#     global step_p_day
+#
+#     gamma = gamma * (1 / step_p_day)
+#     beta = beta * (1 / step_p_day)
+#
+#     for step in range(start_t, end_t):
+#         # if (step % step_p_day) == 0:
+#         s_t.append(len(s_list))
+#         e_t.append(len(e_list))
+#         i_t.append(len(i_list))
+#         r_t.append(len(r_list))
+#         # I --> R
+#         for index in range(len(i_list) - 1, -1, -1):
+#             # if infect[0] in part:
+#             if i_list[index][1] <= 0.5:  # abbiamo superato la durata dell'infezione generata
+#                 r_list.append(i_list[index][0])
+#                 i_list.remove(i_list[index])
+#             else:
+#                 i_list[index][1] -= 1
+#
+#         for index in range(0, len(i_list)):
+#             ngbs = graph.neighbors(i_list[index][0])
+#             for ngb in ngbs:
+#                 if ngb in s_list:
+#                     r = rg1.uniform(0.0, 1.0)
+#                     if r < beta:  # CONTAGIO
+#                         duration_gamma = rg1.expovariate(gamma)
+#                         i_list.append([ngb, duration_gamma])
+#                         s_list.remove(ngb)
 
 
 def print_SEIR_count():
@@ -1052,6 +1110,20 @@ def print_seir_list():
     print("\nLists: ")
     print("seir_list: " + str(seir_list))
     print("res_time_list: " + str(res_time_list))
+
+
+def print_contact_matrix():
+    indx = 0
+    for elem in contact_matrix:
+        print("Nodo " + str(indx) + ": " + str(elem))
+        indx += 1
+
+
+def print_contact_list():
+    index = 0
+    for elem in contact_list:
+        print("Nodo " + str(index) + ": " + str(elem))
+        index += 1
 
 
 def plot_SIR_result(filename):
@@ -1212,6 +1284,8 @@ def parse_input_file():
     global pr_diagnosis
     global pr_notification
 
+    global is_sparse
+
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
         n = data["n_nodes"]  # number of total node
@@ -1235,6 +1309,8 @@ def parse_input_file():
         pr_diagnosis = data["pr_diagnosis"]
         pr_notification = data["pr_notification"]
         window_size = data["window_size"]
+        is_sparse = data["is_sparse"] == True
+        low_precision_loc = data["low_precision_loc"] == True
         step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")
@@ -1322,9 +1398,9 @@ if __name__ == '__main__':
 
         graph = gm.nx.erdos_renyi_graph(15, 0.1)
         contact_list = [[] for elem in range(0, 15)]
-        update_contact_list(graph, 1)
+        update_contacts(graph, 1)
         graph = gm.nx.erdos_renyi_graph(15, 0.1)
-        update_contact_list(graph, 2)
+        update_contacts(graph, 2)
 
         print_contact_list()
 
