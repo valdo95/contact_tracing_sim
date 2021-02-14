@@ -1,4 +1,4 @@
-n_nodes: 300
+n_nodes: 1000
 n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
@@ -12,13 +12,13 @@ min_school_size: 80
 max_school_size: 300
 min_office_size: 10
 max_office_size: 20
-min_transp_size: 10
-max_transp_size: 20
-fr_app_users: 0.0
-pr_diagnosis: 0.0
-pr_notification: 0.0
+min_transp_size: 50
+max_transp_size: 100
+fr_app_users: 0.3
+pr_diagnosis: 0.5
+pr_notification: 0.8
 # if seed == 0 viene settato da SO
 seed: 1
 window_size: 14
 is_sparse: False
-low_precision_loc: True
+fr_far_contacts: 0

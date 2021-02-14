@@ -66,6 +66,8 @@ s_t = []  # number of susceptible for each step (e. g. step_p_day = 10 -> step =
 e_t = []  # number of exposed for each step
 i_t = []  # number of infected for each step
 r_t = []  # number of recovered/isolated/dead for each step
+is_t = [] # number of isolated nodes
+q_t = []  # number of quarantined for each step
 
 people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
@@ -83,7 +85,7 @@ school_partition = []
 transp_partition = []
 
 is_sparse = False
-low_precision_loc = False
+fr_far_contacts = False
 
 
 def set_random_stream():
@@ -501,8 +503,6 @@ def flush_structures():
 #     print(fr_symptomatic)
 
 
-
-
 def get_statistic_seir_tracing():
     count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_q
     # print(seir_list)
@@ -563,25 +563,38 @@ def set_contagion(inf):
                 i += 1
 
         if app_people[inf]:
+            # print(pr_notification)
+            # input()
             if is_sparse:
+
                 stop = int(pr_notification * len(contact_list[inf]))
                 # print(contact_list[inf])
                 for index in range(0, stop):
-                    if contact_list[inf][index][2] >= 0:
-                        seir_list[contact_list[inf][index][0]] = 5
-                        res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+                    if contact_list[inf][index][
+                        2] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                        r = rg1.uniform(0.0, 1.0)
+                        if r < pr_notification:
+                            seir_list[contact_list[inf][index][0]] = 5
+                            res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
             else:
                 i = 0
                 while i < inf:
-                    if contact_matrix[inf][i][1] >= 0:
-                        seir_list[i] = 5
-                        res_time_list[i] = n_days_quar * step_p_day
+                    if contact_matrix[inf][i][
+                        1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                        r = rg1.uniform(0.0, 1.0)
+                        if r < pr_notification:
+                            seir_list[i] = 5
+                            res_time_list[i] = n_days_quar * step_p_day
                     i += 1
                 i += 1
                 while i < n:
-                    if contact_matrix[i][inf][1] >= 0:
-                        seir_list[i] = 5
-                        res_time_list[i] = n_days_quar * step_p_day
+
+                    if contact_matrix[i][inf][
+                        1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                        r = rg1.uniform(0.0, 1.0)
+                        if r < pr_notification:
+                            seir_list[i] = 5
+                            res_time_list[i] = n_days_quar * step_p_day
                     i += 1
 
     else:
@@ -610,7 +623,7 @@ def delete_old_contacts(curr_time):
 
 def update_node_contacts(node, list_2, timestamp, check):
     global contact_list
-    global contact_matrix
+    # global contact_matrix
     i = 0
     j = 0
     res = []
@@ -653,6 +666,57 @@ def update_node_contacts(node, list_2, timestamp, check):
     contact_list[node] = res
 
 
+def update_matrix(graph, timestamp, node_id, check, second_lev=False):
+    global contact_matrix
+    # temp = list(gm.nx.neighbors(graph, node_id))
+    # ngbs = [temp[index] for index in range(0, int(len(temp) * pr_notification))]
+    # temp.clear()
+    ngbs = list(gm.nx.neighbors(graph, node_id))
+    for ngb in ngbs:
+        # print(check)
+        # input()
+        if check:
+            if ngb < node_id:
+                contact_matrix[node_id][ngb] = [timestamp, timestamp]
+            else:
+                contact_matrix[ngb][node_id] = [timestamp, timestamp]
+        else:
+            if ngb < node_id:
+                contact_matrix[node_id][ngb] = [timestamp, -1]
+            else:
+                contact_matrix[ngb][node_id] = [timestamp, -1]
+        # if fr_far_contacts != 0:
+        #     temp = list(gm.nx.neighbors(graph, ngb))
+        #     ngbs_2 = [temp[index] for index in range(0, int(len(temp) * fr_far_contacts))]
+        #     # print("Setta 00: "+str(ngb)+" "+str(node_id))
+        #     # print_contact_matrix()
+        #     # input()
+        #     temp.clear()
+        #     for ngb_2 in ngbs_2:
+        #         if ngb_2 < ngb:
+        #             contact_matrix[ngb][ngb_2][1] = timestamp
+        #         else:
+        #             contact_matrix[ngb_2][ngb][1] = timestamp
+    if fr_far_contacts != 0:
+        temp = list(graph.nodes)
+        # rg1.shuffle(temp)
+        # print(temp)
+        random_list = [temp[index] for index in range(0, int(len(temp) * fr_far_contacts))]
+        # print(random_list)
+        # input()
+        for elem in random_list:
+            if elem < node_id:
+                contact_matrix[node_id][elem][1] = timestamp
+            elif node_id > elem:
+                contact_matrix[elem][node_id][1] = timestamp
+
+                # print("VICINO")
+                # print(ngb)
+                # print("Setta -1 0: " + str(ngbs_2))
+                # print_contact_matrix()
+                # input()
+
+
 def update_contacts(graph, timestamp, g_is_sorted=False):
     check = False
     for elem in graph_ext:
@@ -666,19 +730,8 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
                 nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
             update_node_contacts(node_id, nbs, timestamp, check)
         else:
-            for ngb in gm.nx.neighbors(graph, node_id):
-                if check:
-                    if ngb < node_id:
-                        contact_matrix[node_id][ngb] = [timestamp, timestamp]
-                    else:
-                        contact_matrix[ngb][node_id] = [timestamp, timestamp]
-                else:
-                    if ngb < node_id:
-                        contact_matrix[node_id][ngb] = [timestamp, -1]
-                    else:
-                        contact_matrix[ngb][node_id] = [timestamp, -1]
+            update_matrix(graph, timestamp, node_id, check)
 
-        # input()
         # print(str(node_id)+str(list(gm.nx.neighbors(graph, node_id))))
         # input()
 
@@ -829,16 +882,17 @@ def simulate_tracing():
         #     if len(elem)>max:
         #         max = len(elem)
         # print(max)
-    if is_sparse:
-        print_contact_list()
-    else:
-        print_contact_matrix()
+    # if is_sparse:
+    #     print_contact_list()
+    # else:
+    #     print_contact_matrix()
 
     end_time = time.time()
     duration = round((end_time - start_time), 3)
     print("Duration SEIR Simulation: " + str(duration) + " Seconds")
 
-    plot_SEIR_result("pt1")
+    #plot_SEIR_result("pt1")
+    plot_tracing_result("tracciamento")
     print_SEIR_count()
 
 
@@ -961,6 +1015,8 @@ def sim_seir_tracing(graph, start_t, end_t):
     global e_t
     global i_t
     global r_t
+    global is_t
+    global q_t
 
     global seir_list
     global res_time_list
@@ -971,6 +1027,8 @@ def sim_seir_tracing(graph, start_t, end_t):
         e_t.append(n_e)
         i_t.append(n_i)
         r_t.append(n_r)
+        is_t.append(n_is)
+        q_t.append(n_q)
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
@@ -1151,6 +1209,37 @@ def plot_SIR_result(filename):
     plt.close()
 
 
+def plot_tracing_result(filename):
+    time = []
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, s_t, color='blue')
+    plt.plot(time, e_t, color='orange')
+    plt.plot(time, i_t, color='red')
+    plt.plot(time, r_t, color='yellow')
+    plt.plot(time, is_t, color='violet')
+    plt.plot(time, q_t, color='green')
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    plt.title('Simulation Result - SEIR', fontsize=14)
+    plt.xlabel('Time (gg)', fontsize=14, )
+    plt.ylabel('', fontsize=14)
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='blue', label='Susceptible')
+    orange_patch = mpatches.Patch(color='orange', label='Exposed')
+    red_patch = mpatches.Patch(color='red', label='Infected')
+    yellow_patch = mpatches.Patch(color='yellow', label='Reduced')
+    green_patch = mpatches.Patch(color='green', label='Quarantined')
+    violetpatch = mpatches.Patch(color='violet', label='Isolated')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch, green_patch, violetpatch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
 def plot_SEIR_result(filename):
     time = []
     for i in range(0, len(s_t)):
@@ -1285,6 +1374,7 @@ def parse_input_file():
     global pr_notification
 
     global is_sparse
+    global fr_far_contacts
 
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
@@ -1310,7 +1400,7 @@ def parse_input_file():
         pr_notification = data["pr_notification"]
         window_size = data["window_size"]
         is_sparse = data["is_sparse"] == True
-        low_precision_loc = data["low_precision_loc"] == True
+        fr_far_contacts = data["fr_far_contacts"]
         step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")
