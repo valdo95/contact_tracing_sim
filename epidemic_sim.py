@@ -32,12 +32,15 @@ rg1 = None
 fam_graph = None
 office_school_graph = None
 transp_graph = None
+office_graph = None
+school_graph = None
 # COUNTS
 n = 0  # number of total node
 n_inf = 0  # number of initial infected
 n_stud = 0  # number of student
 n_employs = 0  # number of employees
 n_app_users = 0  # number of people with the app
+n_s = 0  # number of simulation
 
 pr_diagnosis = 0  # Prob of been diagnosed
 pr_notification = 0  # Prob of receive a Notification
@@ -59,7 +62,7 @@ max_transp_size = 0
 # i_list = []  # list of infected nodes
 # r_list = []  # list of recovered/isolated/dead nodes
 
-seir_list = []  # 0-->S, 1-->E, 2-->I, 3-->R, 4-->Isol., 5-->Quarantine
+seir_list = []  # 0-->S, 1-->E, 2-->I, 3-->R, 4-->Isol., 5-->Quarantine S, 6-->Quarantine EI
 sir_list = []  # 0-->S, 1-->I, 2-->R
 res_time_list = []  # res. times (if the node is I or E)
 s_t = []  # number of susceptible for each step (e. g. step_p_day = 10 -> step = 1 / 10)
@@ -67,7 +70,8 @@ e_t = []  # number of exposed for each step
 i_t = []  # number of infected for each step
 r_t = []  # number of recovered/isolated/dead for each step
 is_t = []  # number of isolated nodes
-q_t = []  # number of quarantined for each step
+qs_t = []  # number of quarantined s for each step
+qei_t = []  # number of quarantined ei for each step
 
 people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
@@ -150,14 +154,14 @@ def create_school_work_network():
     temp_graphs = []
     for office in office_partitions:
         temp_graphs.append(gm.create_office_graph(office, 0.3, rg=rg1))
-    office_graphs = gm.nx.union_all(temp_graphs)
-    office_graphs.name = "Office"
+    office_graph = gm.nx.union_all(temp_graphs)
+    office_graph.name = "Office"
     temp_graphs = []
     for school in school_partitions:
         temp_graphs.append(gm.create_school_graph(school, 0.3, rg=rg1))
-    school_graphs = gm.nx.union_all(temp_graphs)
-    school_graphs.name = "School"
-    return office_graphs, school_graphs
+    school_graph = gm.nx.union_all(temp_graphs)
+    school_graph.name = "School"
+    return office_graph, school_graph
 
 
 def compare_with_EON(comparison_type):
@@ -444,6 +448,14 @@ def flush_structures():
     e_t = []
     i_t = []
     r_t = []
+    is_t = []
+    q_t = []
+
+    # office_graph = None
+    # school_graph = None
+    # office_school_graph = None
+    # transp_graph = None
+    # fam_graph = None
 
 
 # def flush_structures():
@@ -504,7 +516,7 @@ def flush_structures():
 
 
 def get_statistic_seir_tracing():
-    count = [0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_q
+    count = [0, 0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_qs,nqei
     # print(seir_list)
     for elem in seir_list:
         count[elem] += 1
@@ -552,13 +564,19 @@ def set_contagion(inf):
             i = 0
             while i < inf:
                 if contact_matrix[inf][i][0] >= 0 and app_people[i]:
-                    seir_list[i] = 5
+                    if seir_list[i] == 0:
+                        seir_list[i] = 5
+                    elif seir_list[i] == 1 or seir_list[i] == 2:
+                        seir_list[i] = 6
                     res_time_list[i] = n_days_quar * step_p_day
                 i += 1
             i += 1
             while i < n:
                 if contact_matrix[i][inf][0] >= 0 and app_people[i]:
-                    seir_list[i] = 5
+                    if seir_list[i] == 0:
+                        seir_list[i] = 5
+                    elif seir_list[i] == 1 or seir_list[i] == 2:
+                        seir_list[i] = 6
                     res_time_list[i] = n_days_quar * step_p_day
                 i += 1
 
@@ -583,7 +601,10 @@ def set_contagion(inf):
                         1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
                         r = rg1.uniform(0.0, 1.0)
                         if r < pr_notification:
-                            seir_list[i] = 5
+                            if seir_list[i] == 0:
+                                seir_list[i] = 5
+                            elif seir_list[i] == 1 or seir_list[i] == 2:
+                                seir_list[i] = 6
                             res_time_list[i] = n_days_quar * step_p_day
                     i += 1
                 i += 1
@@ -593,7 +614,10 @@ def set_contagion(inf):
                         1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
                         r = rg1.uniform(0.0, 1.0)
                         if r < pr_notification:
-                            seir_list[i] = 5
+                            if seir_list[i] == 0:
+                                seir_list[i] = 5
+                            elif seir_list[i] == 1 or seir_list[i] == 2:
+                                seir_list[i] = 6
                             res_time_list[i] = n_days_quar * step_p_day
                     i += 1
 
@@ -736,24 +760,28 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
         # input()
 
 
+def initialize_constant():
+    global gamma
+    global sigma
+    global beta
+    global rg1
+
+    gamma = gamma * (1 / step_p_day)
+    sigma = sigma * (1 / step_p_day)
+    beta = beta * (1 / step_p_day)
+    # if (step_p_day>96):
+    #     beta = beta * (96 / step_p_day)
+    rg1 = set_random_stream()
+
+
 def initialize_tracing():
     global people_tot
     global seir_list
     global res_time_list
     global app_people
     global contact_list
-    global gamma
-    global sigma
-    global beta
     global contact_matrix
 
-    global rg1
-
-    gamma = gamma * (1 / step_p_day)
-    sigma = sigma * (1 / step_p_day)
-    beta = beta * (1 / step_p_day)
-
-    rg1 = set_random_stream()
     people_tot = [elm for elm in range(0, n)]
     seir_list = [0 for elm in range(0, n)]
     res_time_list = [0 for elm in range(0, n)]
@@ -831,6 +859,102 @@ def initialize_seir():
         res_time_list[inf] = rg1.expovariate(gamma)
 
 
+def sim_tracing():
+    global office_school_graph
+    global office_graph
+    global school_graph
+    global transp_graph
+    global fam_graph
+
+    for day in range(0, n_days):
+        print("day " + str(day))
+        # HOME
+        end_1 = day + n_step_home
+        sim_seir_tracing(fam_graph, day, end_1, day=day)
+        # TRANSP
+        end_2 = int(end_1 + (n_step_transp / 2))
+        transp_graph.clear()
+        transp_graph = create_transport_network()
+        gc.collect()
+        sim_seir_tracing(transp_graph, end_1, end_2, day=day)
+        # WORK
+        end_3 = end_2 + n_step_work
+        sim_seir_tracing(office_school_graph, end_2, end_3, day=day)
+        # TRANSP
+        transp_graph.clear()
+        transp_graph = create_transport_network()
+        gc.collect()
+        sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)), day=day)
+        if day > 14:
+            delete_old_contacts(day)
+
+
+def sim_tracing_old():
+    global office_school_graph
+    global office_graph
+    global school_graph
+    global transp_graph
+    global fam_graph
+
+    for day in range(0, n_days):
+        print("day " + str(day))
+        # HOME
+        end_1 = day + n_step_home
+        sim_seir_tracing(fam_graph, day, end_1)
+        # TRANSP
+        end_2 = int(end_1 + (n_step_transp / 2))
+        transp_graph.clear()
+        transp_graph = create_transport_network()
+        update_contacts(transp_graph, day, True)
+        gc.collect()
+        sim_seir_tracing(transp_graph, end_1, end_2)
+        # WORK
+        end_3 = end_2 + n_step_work
+        sim_seir_tracing(office_school_graph, end_2, end_3)
+        # TRANSP
+        transp_graph.clear()
+
+        transp_graph = create_transport_network()
+        update_contacts(office_graph, day, True)
+        update_contacts(school_graph, day, True)
+        update_contacts(fam_graph, day)
+        gc.collect()
+        sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
+        update_contacts(transp_graph, day, True)
+        if day % window_size == 0:
+            delete_old_contacts(day)
+
+
+def run_sim_tracing():
+    global office_school_graph
+    global office_graph
+    global school_graph
+    global transp_graph
+    global fam_graph
+
+    initialize_constant()
+    for curr_sim in range(0, n_s):
+        flush_structures()
+
+        # CREATE GRAPH
+        initialize_tracing()
+        # start_time = time.time()
+        fam_graph = create_families_network()
+        update_contacts(fam_graph, 0)
+        [office_graph, school_graph] = create_school_work_network()
+        # update_contacts(office_graph, 0, True)
+        # update_contacts(school_graph, 0, True)
+        office_school_graph = gm.nx.union(office_graph, school_graph)
+        transp_graph = create_transport_network()
+        # end_time = time.time()
+        # duration = round((end_time - start_time), 3)
+        gc.collect()
+        print("SIMULATION " + str(curr_sim))
+        sim_tracing()
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t)
+        print_SEIR_count()
+
+
 def simulate_tracing():
     global fam_graph
     global office_school_graph
@@ -840,10 +964,10 @@ def simulate_tracing():
     start_time = time.time()
     fam_graph = create_families_network()
     update_contacts(fam_graph, 0)
-    [office_graphs, school_graphs] = create_school_work_network()
-    update_contacts(office_graphs, 0, True)
-    update_contacts(school_graphs, 0, True)
-    office_school_graph = gm.nx.union(office_graphs, school_graphs)
+    [office_graph, school_graph] = create_school_work_network()
+    update_contacts(office_graph, 0, True)
+    update_contacts(school_graph, 0, True)
+    office_school_graph = gm.nx.union(office_graph, school_graph)
     transp_graph = create_transport_network()
     update_contacts(transp_graph, 0, True)
     end_time = time.time()
@@ -870,8 +994,8 @@ def simulate_tracing():
         transp_graph.clear()
         transp_graph = create_transport_network()
         update_contacts(transp_graph, day, True)
-        update_contacts(office_graphs, day, True)
-        update_contacts(school_graphs, day, True)
+        update_contacts(office_graph, day, True)
+        update_contacts(school_graph, day, True)
         gc.collect()
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
         if day % window_size == 0:
@@ -1010,25 +1134,28 @@ def sim_seir(graph, start_t, end_t):
                 seir_list[index] = 3
 
 
-def sim_seir_tracing(graph, start_t, end_t):
+def sim_seir_tracing(graph, start_t, end_t, day):
     global s_t
     global e_t
     global i_t
     global r_t
     global is_t
-    global q_t
+    global qs_t
+    global qei_t
 
     global seir_list
     global res_time_list
 
+    update = 0
     for step in range(start_t, end_t):
-        [n_s, n_e, n_i, n_r, n_is, n_q] = get_statistic_seir_tracing()
+        [n_s, n_e, n_i, n_r, n_is, n_qs, n_qei] = get_statistic_seir_tracing()
         s_t.append(n_s)
         e_t.append(n_e)
         i_t.append(n_i)
         r_t.append(n_r)
         is_t.append(n_is)
-        q_t.append(n_q)
+        qs_t.append(n_qs)
+        qei_t.append(n_qei)
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
@@ -1049,9 +1176,16 @@ def sim_seir_tracing(graph, start_t, end_t):
                 # I --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
-            elif seir_list[index] == 4 or seir_list[index] == 5:
+            elif seir_list[index] == 4 or seir_list[index] == 6:
                 res_time_list[index] = 0
                 seir_list[index] = 3
+            elif seir_list[index] == 5:
+                res_time_list[index] = 0
+                seir_list[index] = 0
+
+            if update == 0:
+                update_contacts(graph, day)
+            update += 1
 
 
 # def sim_SEIR_old(graph, start_t, end_t):
@@ -1219,7 +1353,8 @@ def plot_tracing_result(filename):
     plt.plot(time, i_t, color='red')
     plt.plot(time, r_t, color='yellow')
     plt.plot(time, is_t, color='violet')
-    plt.plot(time, q_t, color='green')
+    plt.plot(time, qs_t, color='green')
+    plt.plot(time, qei_t, color='purple')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
     plt.title('Simulation Result - SEIR', fontsize=14)
@@ -1232,9 +1367,10 @@ def plot_tracing_result(filename):
     orange_patch = mpatches.Patch(color='orange', label='Exposed')
     red_patch = mpatches.Patch(color='red', label='Infected')
     yellow_patch = mpatches.Patch(color='yellow', label='Reduced')
-    green_patch = mpatches.Patch(color='green', label='Quarantined')
+    green_patch = mpatches.Patch(color='green', label='Quarantined S')
+    purple_patch = mpatches.Patch(color='purple', label='Quarantined EI')
     violetpatch = mpatches.Patch(color='violet', label='Isolated')
-    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch, green_patch, violetpatch])
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch, green_patch, purple_patch, violetpatch])
 
     plt.savefig("img/" + str(filename) + "_SEIR.png")
     plt.close()
@@ -1449,6 +1585,17 @@ if __name__ == '__main__':
     elif sys.argv[1] == "tracing":
         parse_input_file()
         simulate_tracing()
+    elif sys.argv[1] == "n_tracing":
+        n_s = int(sys.argv[2])
+        fm.clear_csv()
+        fm.clear_avg_csv()
+        parse_input_file()
+        print(n_s)
+        run_sim_tracing()
+        plot_tracing_result("Yep")
+        print("done")
+        # parse_input_file()
+        # simulate_tracing()
     elif sys.argv[1] == "write_res":
         fm.clear_csv()
         fm.clear_avg_csv()
@@ -1522,4 +1669,8 @@ if __name__ == '__main__':
 
 
     else:
-        parse_input_file()
+        print("Wrong Paramters!")
+        print("If you want to run a single seir simulation run:\npython epidemic_sim.py \"simulate\"\n")
+        print("If you want to run a single tracing simulation run:\npython epidemic_sim.py \"tracing\"\n")
+        print(
+            "If you want to run multiple tracing simulation run:\npython epidemic_sim.py \"n_tracing\" nunber_of_simulations\n")

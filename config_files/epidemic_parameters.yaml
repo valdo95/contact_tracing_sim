@@ -3,5 +3,5 @@ sigma: 0.3
 gamma: 0.05
 fr_inf: 0.01
 fr_symptomatic: 0.5
-n_days_isol: 10
+n_days_isol: 4
 n_days_quar: 10
