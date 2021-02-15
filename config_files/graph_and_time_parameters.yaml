@@ -12,8 +12,8 @@ min_school_size: 80
 max_school_size: 300
 min_office_size: 10
 max_office_size: 20
-min_transp_size: 50
-max_transp_size: 100
+min_transp_size: 40
+max_transp_size: 200
 fr_app_users: 0.3
 pr_diagnosis: 0.5
 pr_notification: 0.8

@@ -66,7 +66,7 @@ s_t = []  # number of susceptible for each step (e. g. step_p_day = 10 -> step =
 e_t = []  # number of exposed for each step
 i_t = []  # number of infected for each step
 r_t = []  # number of recovered/isolated/dead for each step
-is_t = [] # number of isolated nodes
+is_t = []  # number of isolated nodes
 q_t = []  # number of quarantined for each step
 
 people_tot = []  # array of nodes
@@ -891,7 +891,7 @@ def simulate_tracing():
     duration = round((end_time - start_time), 3)
     print("Duration SEIR Simulation: " + str(duration) + " Seconds")
 
-    #plot_SEIR_result("pt1")
+    # plot_SEIR_result("pt1")
     plot_tracing_result("tracciamento")
     print_SEIR_count()
 
@@ -1451,26 +1451,52 @@ if __name__ == '__main__':
         simulate_tracing()
     elif sys.argv[1] == "write_res":
         fm.clear_csv()
+        fm.clear_avg_csv()
         s_t = [3, 5, 8]
         e_t = [1, 1, 1]
         i_t = [9, 9, 9]
         r_t = [10, 1, 1]
-        fm.write_csv(s_t, e_t, i_t, r_t, 1)
+        fm.write_csv_seir(s_t, e_t, i_t, r_t)
         s_t = [4, 5, 9]
         e_t = [1, 1, 1]
         i_t = [3, 5, 8]
         r_t = [10, 1, 1]
-        fm.write_csv(s_t, e_t, i_t, r_t, 2)
+        fm.write_csv_seir(s_t, e_t, i_t, r_t)
         s_t = [5, 5, 8]
         e_t = [1, 5, 1]
         i_t = [9, 9, 9]
         r_t = [10, 1, 1]
-        fm.write_csv(s_t, e_t, i_t, r_t, 3)
-        [a, b, c, d] = fm.calculate_average_from_csv()
+        fm.write_csv_seir(s_t, e_t, i_t, r_t)
+        [a, b, c, d] = fm.calculate_average_from_csv_seir()
+
+        # fm.clear_csv_tracing()
+        # s_t = [3, 5, 8]
+        # e_t = [1, 1, 1]
+        # i_t = [9, 9, 9]
+        # r_t = [10, 1, 1]
+        # is_t = [10, 1, 1]
+        # q_t = [10, 1, 1]
+        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
+        # s_t = [4, 5, 9]
+        # e_t = [1, 1, 1]
+        # i_t = [3, 5, 8]
+        # r_t = [10, 1, 1]
+        # is_t = [10, 1, 1]
+        # q_t = [10, 1, 1]
+        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
+        # s_t = [5, 5, 8]
+        # e_t = [1, 5, 1]
+        # i_t = [9, 9, 9]
+        # r_t = [10, 1, 1]
+        # is_t = [10, 2, 1]
+        # q_t = [10, 10, 1]
+        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
+        # [a, b, c, d, e, f] = fm.calculate_average_from_csv_tracing()
         print(a)
         print(b)
         print(c)
         print(d)
+        fm.write_csv_seir(a, b, c, d, True)
     elif sys.argv[1] == "simulate":
         parse_input_file()
         simulate()
