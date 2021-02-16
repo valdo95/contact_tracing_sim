@@ -28,6 +28,7 @@ n_step_transp = 0  # number of step on public transport
 fr_station_user = 0  # fraction of people that use train station
 fr_symptomatic = 0  # fraction of symptomatic
 initial_seed = 0
+start_contagion = 0  # time of first contagion
 rg1 = None
 fam_graph = None
 office_school_graph = None
@@ -440,6 +441,8 @@ def flush_structures():
     global e_t
     global i_t
     global r_t
+    global qs_t
+    global qei_t
 
     sir_list = []
     res_time_list = []
@@ -449,7 +452,9 @@ def flush_structures():
     i_t = []
     r_t = []
     is_t = []
-    q_t = []
+    qs_t = []
+    qei_t = []
+    gc.collect()
 
     # office_graph = None
     # school_graph = None
@@ -539,15 +544,6 @@ def get_statistic_sir():
     return count
 
 
-# def loc_contact(inf):
-#     transp_graph
-#     node_list = dict(office_school_graph.nodes(data="school"))
-#     if node_list[inf][0] == "public_transport":
-#         r = rg1.uniform(0.0,1.0)
-#         if r<pr_notification:
-#             seir_list[inf] = 5
-#             res_time_list[inf] = n_days_quar * step_p_day
-
 def set_contagion(inf):
     global seir_list
     global res_time_list
@@ -606,9 +602,10 @@ def set_contagion(inf):
                         if r < pr_notification:
                             if seir_list[i] == 0:
                                 seir_list[i] = 5
+                                res_time_list[i] = n_days_quar * step_p_day
                             elif seir_list[i] == 1 or seir_list[i] == 2:
                                 seir_list[i] = 6
-                            res_time_list[i] = n_days_quar * step_p_day
+                                res_time_list[i] = n_days_quar * step_p_day
                     i += 1
                 i += 1
                 while i < n:
@@ -617,11 +614,13 @@ def set_contagion(inf):
                         1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
                         r = rg1.uniform(0.0, 1.0)
                         if r < pr_notification:
+                            print("LOC")
                             if seir_list[i] == 0:
                                 seir_list[i] = 5
+                                res_time_list[i] = n_days_quar * step_p_day
                             elif seir_list[i] == 1 or seir_list[i] == 2:
                                 seir_list[i] = 6
-                            res_time_list[i] = n_days_quar * step_p_day
+                                res_time_list[i] = n_days_quar * step_p_day
                     i += 1
 
     else:
@@ -793,11 +792,17 @@ def initialize_tracing():
         contact_list = [[] for elem in range(0, n)]
     else:
         contact_matrix = [[[-1, -1] for elem in range(0, index)] for index in range(0, n)]  # Matrice triangolare
-    rg1.shuffle(people_tot)
-    initial_i = [el for el in people_tot[:n_inf]]
+
     rg1.shuffle(people_tot)
     for pr in people_tot[:n_app_users]:
         app_people[pr] = True
+
+
+def set_fisrt_contagion():
+    global seir_list
+    global res_time_list
+    rg1.shuffle(people_tot)
+    initial_i = [el for el in people_tot[:n_inf]]
     for inf in initial_i:
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
@@ -888,6 +893,8 @@ def sim_tracing():
         transp_graph = create_transport_network()
         gc.collect()
         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)), day=day)
+        if day == start_contagion:
+            set_fisrt_contagion()
         if day > 14:
             delete_old_contacts(day)
 
@@ -945,8 +952,6 @@ def run_sim_tracing():
         fam_graph = create_families_network()
         update_contacts(fam_graph, 0)
         [office_graph, school_graph] = create_school_work_network()
-        # update_contacts(office_graph, 0, True)
-        # update_contacts(school_graph, 0, True)
         office_school_graph = gm.nx.union(office_graph, school_graph)
         transp_graph = create_transport_network()
         # end_time = time.time()
@@ -954,73 +959,71 @@ def run_sim_tracing():
         gc.collect()
         print("SIMULATION " + str(curr_sim))
         sim_tracing()
-        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t)
-        print_SEIR_count()
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
+        print_tracing_count()
 
 
-def simulate_tracing():
-    global fam_graph
-    global office_school_graph
-    global transp_graph
-
-    initialize_tracing()
-    start_time = time.time()
-    fam_graph = create_families_network()
-    update_contacts(fam_graph, 0)
-    [office_graph, school_graph] = create_school_work_network()
-    update_contacts(office_graph, 0, True)
-    update_contacts(school_graph, 0, True)
-    office_school_graph = gm.nx.union(office_graph, school_graph)
-    transp_graph = create_transport_network()
-    update_contacts(transp_graph, 0, True)
-    end_time = time.time()
-    duration = round((end_time - start_time), 3)
-    gc.collect()
-    print("Duration Graph Creation: " + str(duration) + " Seconds")
-    start_time = time.time()
-    for day in range(0, n_days):
-        print("day " + str(day))
-        # HOME
-        end_1 = day + n_step_home
-        sim_seir_tracing(fam_graph, day, end_1)
-        # TRANSP
-        end_2 = int(end_1 + (n_step_transp / 2))
-        transp_graph.clear()
-        transp_graph = create_transport_network()
-        update_contacts(transp_graph, day, True)
-        gc.collect()
-        sim_seir_tracing(transp_graph, end_1, end_2)
-        # WORK
-        end_3 = end_2 + n_step_work
-        sim_seir_tracing(office_school_graph, end_2, end_3)
-        # TRANSP
-        transp_graph.clear()
-        transp_graph = create_transport_network()
-        update_contacts(transp_graph, day, True)
-        update_contacts(office_graph, day, True)
-        update_contacts(school_graph, day, True)
-        gc.collect()
-        sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
-        if day % window_size == 0:
-            delete_old_contacts(day)
-        # print_contact_list()
-        # max = 0
-        # for elem in contact_list:
-        #     if len(elem)>max:
-        #         max = len(elem)
-        # print(max)
-    # if is_sparse:
-    #     print_contact_list()
-    # else:
-    #     print_contact_matrix()
-
-    end_time = time.time()
-    duration = round((end_time - start_time), 3)
-    print("Duration SEIR Simulation: " + str(duration) + " Seconds")
-
-    # plot_SEIR_result("pt1")
-    plot_tracing_result("tracciamento")
-    print_SEIR_count()
+# def simulate_tracing():
+#     global fam_graph
+#     global office_school_graph
+#     global transp_graph
+#
+#     initialize_tracing()
+#     start_time = time.time()
+#     fam_graph = create_families_network()
+#     update_contacts(fam_graph, 0)
+#     [office_graph, school_graph] = create_school_work_network()
+#     update_contacts(office_graph, 0, True)
+#     update_contacts(school_graph, 0, True)
+#     office_school_graph = gm.nx.union(office_graph, school_graph)
+#     transp_graph = create_transport_network()
+#     update_contacts(transp_graph, 0, True)
+#     end_time = time.time()
+#     duration = round((end_time - start_time), 3)
+#     gc.collect()
+#     print("Duration Graph Creation: " + str(duration) + " Seconds")
+#     start_time = time.time()
+#     for day in range(0, n_days):
+#         print("day " + str(day))
+#         # HOME
+#         end_1 = day + n_step_home
+#         sim_seir_tracing(fam_graph, day, end_1)
+#         # TRANSP
+#         end_2 = int(end_1 + (n_step_transp / 2))
+#         transp_graph.clear()
+#         transp_graph = create_transport_network()
+#         update_contacts(transp_graph, day, True)
+#         gc.collect()
+#         sim_seir_tracing(transp_graph, end_1, end_2)
+#         # WORK
+#         end_3 = end_2 + n_step_work
+#         sim_seir_tracing(office_school_graph, end_2, end_3)
+#         # TRANSP
+#         transp_graph.clear()
+#         transp_graph = create_transport_network()
+#         update_contacts(transp_graph, day, True)
+#         update_contacts(office_graph, day, True)
+#         update_contacts(school_graph, day, True)
+#         gc.collect()
+#         sim_seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)))
+#         # print_contact_list()
+#         # max = 0
+#         # for elem in contact_list:
+#         #     if len(elem)>max:
+#         #         max = len(elem)
+#         # print(max)
+#     # if is_sparse:
+#     #     print_contact_list()
+#     # else:
+#     #     print_contact_matrix()
+#
+#     end_time = time.time()
+#     duration = round((end_time - start_time), 3)
+#     print("Duration SEIR Simulation: " + str(duration) + " Seconds")
+#
+#     # plot_SEIR_result("pt1")
+#     plot_tracing_result("tracciamento")
+#     print_SEIR_count()
 
 
 def simulate():
@@ -1183,9 +1186,11 @@ def sim_seir_tracing(graph, start_t, end_t, day):
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 4 or seir_list[index] == 6:
+                # Is --> R or Q_EI --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 5:
+                # Q_S --> S
                 res_time_list[index] = 0
                 seir_list[index] = 0
 
@@ -1283,6 +1288,17 @@ def sim_seir_tracing(graph, start_t, end_t, day):
 #                         s_list.remove(ngb)
 
 
+def print_tracing_count():
+    print("\nCount tracing SEIR: ")
+    print("s_t: " + str(s_t))
+    print("e_t: " + str(e_t))
+    print("i_t: " + str(i_t))
+    print("r_t: " + str(r_t))
+    print("is_t: " + str(is_t))
+    print("qs_t: " + str(qs_t))
+    print("qei_t: " + str(qei_t))
+
+
 def print_SEIR_count():
     print("\nCount SEIR: ")
     print("s_t: " + str(s_t))
@@ -1349,10 +1365,11 @@ def plot_SIR_result(filename):
     plt.close()
 
 
-def plot_tracing_result(filename):
+def plot_tracing_result(filename, offset=0):
     time = []
     for i in range(0, len(s_t)):
         time.append(i / step_p_day)
+    # time = time[offset:]
     # list_time_new = np.linspace(min(time), max(time), 1000)
     plt.plot(time, s_t, color='blue')
     plt.plot(time, e_t, color='orange')
@@ -1382,15 +1399,46 @@ def plot_tracing_result(filename):
     plt.close()
 
 
-def plot_SEIR_result(filename):
+def plot_seir_tracing(filename, offset=0):
     time = []
+    offset = offset * step_p_day
     for i in range(0, len(s_t)):
         time.append(i / step_p_day)
+    time = time[offset:]
     # list_time_new = np.linspace(min(time), max(time), 1000)
-    plt.plot(time, s_t, color='blue')
-    plt.plot(time, e_t, color='orange')
-    plt.plot(time, i_t, color='red')
-    plt.plot(time, r_t, color='yellow')
+    plt.plot(time, qs_t[offset:], color='green')
+    plt.plot(time, qei_t[offset:], color='violet')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, is_t[offset:], color='purple')
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    plt.title('Simulation Result - SEIR', fontsize=14)
+    plt.xlabel('Time (gg)', fontsize=14, )
+    plt.ylabel('', fontsize=14)
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='green', label='Q-S')
+    orange_patch = mpatches.Patch(color='violet', label='Q-IE')
+    red_patch = mpatches.Patch(color='red', label='Infected')
+    yellow_patch = mpatches.Patch(color='purple', label='Isolated')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
+def plot_seir_result(filename, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, s_t[offset:], color='blue')
+    plt.plot(time, e_t[offset:], color='orange')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, r_t[offset:], color='yellow')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
     plt.title('Simulation Result - SEIR', fontsize=14)
@@ -1479,6 +1527,50 @@ def epidemic(graph, n_days):
 #     if ctrl:
 #         return -1
 #     return i - 1
+def get_result():
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    global is_t
+    global qs_t
+    global qei_t
+    print("Start avg calc ...")
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+    print(s_t)
+    fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
+    print("End avg calc")
+    plot_seir_result("avg_seir_n_sim=" + str(n_s), offset=start_contagion)
+    plot_seir_tracing("avg_tracing_n_sim=" + str(n_s), offset=start_contagion)
+
+
+def plot_result_from_avg():
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    global is_t
+    global qs_t
+    global qei_t
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.read_csv(tracing=True, avg=True)
+    plot_seir_result("avg_seir", offset=start_contagion)
+    plot_seir_tracing("avg_tracing=", offset=start_contagion)
+
+
+def plot_avg_result():
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    global is_t
+    global qs_t
+    global qei_t
+    print("Start avg calc ...")
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+    fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
+    print("End avg calc")
+    plot_seir_result("avg_seir_n_sim=" + str(n_s), offset=start_contagion)
+    plot_seir_tracing("avg_tracing_n_sim=" + str(n_s), offset=start_contagion)
 
 
 def parse_input_file():
@@ -1486,6 +1578,7 @@ def parse_input_file():
     global sigma
     global gamma
 
+    global start_contagion
     global window_size
     global n
     global n_inf
@@ -1543,6 +1636,7 @@ def parse_input_file():
         window_size = data["window_size"]
         is_sparse = data["is_sparse"] == True
         fr_far_contacts = data["fr_far_contacts"]
+        start_contagion = data["start_contagion"]
         step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")
@@ -1588,68 +1682,82 @@ if __name__ == '__main__':
     elif sys.argv[1] == "validation_3":
         print(sys.argv[1])
         second_validation(sys.argv[1])
-    elif sys.argv[1] == "tracing":
+    elif sys.argv[1] == "tracing_old":
         parse_input_file()
         simulate_tracing()
-    elif sys.argv[1] == "n_tracing":
+    elif sys.argv[1] == "result_from_avg":
+        parse_input_file()
+        plot_result_from_avg()
+    elif sys.argv[1] == "result":
+        parse_input_file()
+        get_result()
+    elif sys.argv[1] == "tracing":
         n_s = int(sys.argv[2])
         fm.clear_csv()
         fm.clear_avg_csv()
         parse_input_file()
         print(n_s)
         run_sim_tracing()
-        plot_tracing_result("Yep")
+        flush_structures()
+        get_result()
+
+
+        plot_seir_result()
         print("done")
         # parse_input_file()
         # simulate_tracing()
     elif sys.argv[1] == "write_res":
-        fm.clear_csv()
-        fm.clear_avg_csv()
-        s_t = [3, 5, 8]
-        e_t = [1, 1, 1]
-        i_t = [9, 9, 9]
-        r_t = [10, 1, 1]
-        fm.write_csv_seir(s_t, e_t, i_t, r_t)
-        s_t = [4, 5, 9]
-        e_t = [1, 1, 1]
-        i_t = [3, 5, 8]
-        r_t = [10, 1, 1]
-        fm.write_csv_seir(s_t, e_t, i_t, r_t)
-        s_t = [5, 5, 8]
-        e_t = [1, 5, 1]
-        i_t = [9, 9, 9]
-        r_t = [10, 1, 1]
-        fm.write_csv_seir(s_t, e_t, i_t, r_t)
-        [a, b, c, d] = fm.calculate_average_from_csv_seir()
-
-        # fm.clear_csv_tracing()
+        # fm.clear_csv()
+        # fm.clear_avg_csv()
         # s_t = [3, 5, 8]
         # e_t = [1, 1, 1]
         # i_t = [9, 9, 9]
         # r_t = [10, 1, 1]
-        # is_t = [10, 1, 1]
-        # q_t = [10, 1, 1]
-        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
+        # fm.write_csv_seir(s_t, e_t, i_t, r_t)
         # s_t = [4, 5, 9]
         # e_t = [1, 1, 1]
         # i_t = [3, 5, 8]
         # r_t = [10, 1, 1]
-        # is_t = [10, 1, 1]
-        # q_t = [10, 1, 1]
-        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
+        # fm.write_csv_seir(s_t, e_t, i_t, r_t)
         # s_t = [5, 5, 8]
         # e_t = [1, 5, 1]
         # i_t = [9, 9, 9]
         # r_t = [10, 1, 1]
-        # is_t = [10, 2, 1]
-        # q_t = [10, 10, 1]
-        # fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t)
-        # [a, b, c, d, e, f] = fm.calculate_average_from_csv_tracing()
+        # fm.write_csv_seir(s_t, e_t, i_t, r_t)
+        # [a, b, c, d] = fm.calculate_average_from_csv_seir()
+
+        fm.clear_csv()
+        s_t = [3, 5, 8]
+        e_t = [1, 1, 1]
+        i_t = [9, 9, 9]
+        r_t = [10, 1, 1]
+        is_t = [10, 1, 1]
+        q_t = [10, 1, 1]
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
+        s_t = [4, 5, 9]
+        e_t = [1, 1, 1]
+        i_t = [3, 5, 8]
+        r_t = [10, 1, 1]
+        is_t = [10, 1, 1]
+        q_t = [10, 1, 1]
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
+        s_t = [5, 5, 8]
+        e_t = [1, 5, 1]
+        i_t = [9, 9, 9]
+        r_t = [10, 1, 1]
+        is_t = [10, 2, 1]
+        q_t = [10, 10, 1]
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
+        [a, b, c, d, e, f, g] = fm.calculate_average_from_csv_tracing()
         print(a)
         print(b)
         print(c)
         print(d)
-        fm.write_csv_seir(a, b, c, d, True)
+        print(e)
+        print(f)
+        print(g)
+        fm.write_csv_tracing(a, b, c, d, e, f, g, True)
+
     elif sys.argv[1] == "simulate":
         parse_input_file()
         simulate()
