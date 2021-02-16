@@ -560,24 +560,27 @@ def set_contagion(inf):
                 if app_people[elem[0]]:
                     seir_list[elem[0]] = 5
                     res_time_list[elem[0]] = n_days_quar * step_p_day
+
         else:
             i = 0
             while i < inf:
                 if contact_matrix[inf][i][0] >= 0 and app_people[i]:
                     if seir_list[i] == 0:
                         seir_list[i] = 5
+                        res_time_list[i] = n_days_quar * step_p_day
                     elif seir_list[i] == 1 or seir_list[i] == 2:
                         seir_list[i] = 6
-                    res_time_list[i] = n_days_quar * step_p_day
+                        res_time_list[i] = n_days_quar * step_p_day
                 i += 1
             i += 1
             while i < n:
                 if contact_matrix[i][inf][0] >= 0 and app_people[i]:
                     if seir_list[i] == 0:
                         seir_list[i] = 5
+                        res_time_list[i] = n_days_quar * step_p_day
                     elif seir_list[i] == 1 or seir_list[i] == 2:
                         seir_list[i] = 6
-                    res_time_list[i] = n_days_quar * step_p_day
+                        res_time_list[i] = n_days_quar * step_p_day
                 i += 1
 
         if app_people[inf]:
@@ -1159,6 +1162,9 @@ def sim_seir_tracing(graph, start_t, end_t, day):
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
+                # if index == 23:
+                #     print(str(index)+": "+str(res_time_list[index])+" "+str(seir_list[index]))
+                #     input()
                 res_time_list[index] -= 1
                 if seir_list[index] == 2:  # index is I
                     ngbs = graph.neighbors(index)
