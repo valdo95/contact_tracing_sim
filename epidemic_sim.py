@@ -84,7 +84,7 @@ contact_matrix = []  # [ngb, timestamp1, timestamp2] contact list
 # commuter_partitions = []  # list of list of people that use one specific station
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
 
-graph_ext = ["Transport", "School", "Office", "Families"]  # "Transport", "School","Office","Families"
+graph_ext = []  # "Transport", "School","Office","Families"
 
 office_partion = []
 school_partition = []
@@ -548,10 +548,8 @@ def update_node_contacts(node, list_2, timestamp, check):
     res = []
     while i < len(contact_list[node]) and j < len(list_2):
         if contact_list[node][i][0] < list_2[j]:
-            if check:
-                res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
-            else:
-                res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
+            #if check:
+            res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][2]])
             i += 1
         elif contact_list[node][i][0] == list_2[j]:  # doppioni
             if check:
@@ -570,10 +568,8 @@ def update_node_contacts(node, list_2, timestamp, check):
             j += 1
     # Elementi rimasti
     while i < len(contact_list[node]):
-        if check:
-            res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][1]])
-        else:
-            res.append([contact_list[node][i][0], contact_list[node][i][1], -1])
+        #if check:
+        res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][2]])
         i += 1
     while j < len(list_2):
         if check:
@@ -604,18 +600,7 @@ def update_matrix(graph, timestamp, node_id, check, second_lev=False):
                 contact_matrix[node_id][ngb] = [timestamp, -1]
             else:
                 contact_matrix[ngb][node_id] = [timestamp, -1]
-        # if fr_far_contacts != 0:
-        #     temp = list(gm.nx.neighbors(graph, ngb))
-        #     ngbs_2 = [temp[index] for index in range(0, int(len(temp) * fr_far_contacts))]
-        #     # print("Setta 00: "+str(ngb)+" "+str(node_id))
-        #     # print_contact_matrix()
-        #     # input()
-        #     temp.clear()
-        #     for ngb_2 in ngbs_2:
-        #         if ngb_2 < ngb:
-        #             contact_matrix[ngb][ngb_2][1] = timestamp
-        #         else:
-        #             contact_matrix[ngb_2][ngb][1] = timestamp
+
     if fr_far_contacts != 0:
         temp = list(graph.nodes)
         # rg1.shuffle(temp)
@@ -628,12 +613,6 @@ def update_matrix(graph, timestamp, node_id, check, second_lev=False):
                 contact_matrix[node_id][elem][1] = timestamp
             elif node_id > elem:
                 contact_matrix[elem][node_id][1] = timestamp
-
-                # print("VICINO")
-                # print(ngb)
-                # print("Setta -1 0: " + str(ngbs_2))
-                # print_contact_matrix()
-                # input()
 
 
 def update_contacts(graph, timestamp, g_is_sorted=False):
@@ -980,8 +959,15 @@ def set_contagion(inf):
                 # LISTE CONTATTI
                 for elem in contact_list[inf]:
                     if app_people[elem[0]]:
-                        seir_list[elem[0]] = 5
-                        res_time_list[elem[0]] = n_days_quar * step_p_day
+
+                        if seir_list[elem[0]] == 0:
+                            # S --> Q-S
+                            seir_list[elem[0]] = 5
+                            res_time_list[elem[0]] = rg1.expovariate(eta)
+                        if seir_list[elem[0]] == 1 or seir_list[elem[0]] == 2:
+                            # E or I --> Q-EI
+                            seir_list[elem[0]] = 6
+                            res_time_list[elem[0]] = n_days_quar * step_p_day
 
             else:
                 # MATRICE CONTATTI
@@ -1015,26 +1001,31 @@ def set_contagion(inf):
 
             # LOCALIZZAZIONE
             if is_sparse:
-                stop = int(pr_notification * len(contact_list[inf]))
-                # print(contact_list[inf])
-                for index in range(0, stop):
+                for index in range(0, len(contact_list[inf])):
+                    # r = rg1.uniform(0.0, 1.0)
                     if contact_list[inf][index][
                         2] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
                         r = rg1.uniform(0.0, 1.0)
                         if r < pr_notification:
-                            seir_list[contact_list[inf][index][0]] = 5
-                            res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+                            if seir_list[contact_list[inf][index][0]] == 0:
+                                # S --> Q-S
+                                seir_list[contact_list[inf][index][0]] = 5
+                                res_time_list[contact_list[inf][index][0]] = rg1.expovariate(eta)
+                            if seir_list[contact_list[inf][index][0]] == 1 or seir_list[contact_list[inf][index][0]] == 2:
+                                # E or I --> Q-EI
+                                seir_list[contact_list[inf][index][0]] = 6
+                                res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+
             else:
                 i = 0
                 while i < inf:
-                    if contact_matrix[inf][i][
-                        1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                    if contact_matrix[inf][i][1] >= 0 and pr_notification > 0:
                         r = rg1.uniform(0.0, 1.0)
                         if r < pr_notification:
                             if seir_list[i] == 0:
                                 # S --> Q-S
                                 seir_list[i] = 5
-                                res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
+                                res_time_list[i] = rg1.expovariate(eta)
                             elif seir_list[i] == 1 or seir_list[i] == 2:
                                 # E or I --> Q-EI
                                 seir_list[i] = 6
@@ -1643,6 +1634,15 @@ def parse_input_file():
         is_sparse = data["is_sparse"] == True
         fr_far_contacts = data["fr_far_contacts"]
         start_contagion = data["start_contagion"]
+        if data["Transport"] != 0:
+            graph_ext.append("Transport")
+        if data["Office"] != 0:
+            graph_ext.append("Office")
+        if data["School"] != 0:
+            graph_ext.append("School")
+        if data["Families"] != 0:
+            graph_ext.append("Families")
+
         step_p_day = n_step_home + n_step_work + n_step_transp
 
         print("\nGraph and Time Parameters: \n")
