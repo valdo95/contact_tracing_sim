@@ -95,8 +95,6 @@ def read_csv(tracing=False, avg=False):
             for row in reader:
                 for index in range(0, len(row)):
                     row[index] = float(row[index])
-                print(row)
-                input()
                 res.append(row)
     return res
 

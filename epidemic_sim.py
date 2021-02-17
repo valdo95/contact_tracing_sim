@@ -549,41 +549,51 @@ def set_contagion(inf):
     global res_time_list
     r1 = rg1.uniform(0.0, 1.0)
     if r1 < pr_diagnosis:
+        # E --> I
         seir_list[inf] = 4
         res_time_list[inf] = n_days_isol * step_p_day
-        if is_sparse:
-            for elem in contact_list[inf]:
-                if app_people[elem[0]]:
-                    seir_list[elem[0]] = 5
-                    res_time_list[elem[0]] = n_days_quar * step_p_day
 
-        else:
-            i = 0
-            while i < inf:
-                if contact_matrix[inf][i][0] >= 0 and app_people[i]:
-                    if seir_list[i] == 0:
-                        seir_list[i] = 5
-                        res_time_list[i] = n_days_quar * step_p_day
-                    elif seir_list[i] == 1 or seir_list[i] == 2:
-                        seir_list[i] = 6
-                        res_time_list[i] = n_days_quar * step_p_day
-                i += 1
-            i += 1
-            while i < n:
-                if contact_matrix[i][inf][0] >= 0 and app_people[i]:
-                    if seir_list[i] == 0:
-                        seir_list[i] = 5
-                        res_time_list[i] = n_days_quar * step_p_day
-                    elif seir_list[i] == 1 or seir_list[i] == 2:
-                        seir_list[i] = 6
-                        res_time_list[i] = n_days_quar * step_p_day
-                i += 1
-
+        # GESTIONE NOTIFICHE
         if app_people[inf]:
-            # print(pr_notification)
-            # input()
             if is_sparse:
+                # LISTE CONTATTI
+                for elem in contact_list[inf]:
+                    if app_people[elem[0]]:
+                        seir_list[elem[0]] = 5
+                        res_time_list[elem[0]] = n_days_quar * step_p_day
 
+            else:
+                # MATRICE CONTATTI
+                i = 0
+                while i < inf:
+                    if contact_matrix[inf][i][0] >= 0 and app_people[i]:
+
+                        if seir_list[i] == 0:
+                            # S --> Q-S
+                            seir_list[i] = 5
+                            res_time_list[i] = n_days_quar * step_p_day
+                        elif seir_list[i] == 1 or seir_list[i] == 2:
+                            # E or I --> Q-EI
+                            seir_list[i] = 6
+                            res_time_list[i] = n_days_quar * step_p_day
+                    i += 1
+                i += 1
+                while i < n:
+                    if contact_matrix[i][inf][0] >= 0 and app_people[i]:
+                        if seir_list[i] == 0:
+                            # S --> Q-S
+                            seir_list[i] = 5
+                            res_time_list[i] = n_days_quar * step_p_day
+                        elif seir_list[i] == 1 or seir_list[i] == 2:
+                            # E or I --> Q-EI
+                            seir_list[i] = 6
+                            res_time_list[i] = n_days_quar * step_p_day
+                    i += 1
+
+
+
+            # LOCALIZZAZIONE
+            if is_sparse:
                 stop = int(pr_notification * len(contact_list[inf]))
                 # print(contact_list[inf])
                 for index in range(0, stop):
@@ -624,6 +634,7 @@ def set_contagion(inf):
                     i += 1
 
     else:
+        # E --> I
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
 
@@ -643,7 +654,7 @@ def delete_old_contacts(curr_time):
     else:
         for line in contact_matrix:
             for index in range(0, len(line)):
-                if line[index][0] < old_time:
+                if line[index][0] < old_time or line[index][1] < old_time :
                     line[index] = [-1, -1]
 
 
@@ -770,7 +781,7 @@ def initialize_constant():
 
     gamma = gamma * (1 / step_p_day)
     sigma = sigma * (1 / step_p_day)
-    beta = beta * (1 / step_p_day)
+    beta = beta #* (1 / step_p_day)
     # if (step_p_day>96):
     #     beta = beta * (96 / step_p_day)
     rg1 = set_random_stream()
@@ -1165,9 +1176,6 @@ def sim_seir_tracing(graph, start_t, end_t, day):
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
-                # if index == 23:
-                #     print(str(index)+": "+str(res_time_list[index])+" "+str(seir_list[index]))
-                #     input()
                 res_time_list[index] -= 1
                 if seir_list[index] == 2:  # index is I
                     ngbs = graph.neighbors(index)
@@ -1178,15 +1186,15 @@ def sim_seir_tracing(graph, start_t, end_t, day):
                             if r < beta:
                                 res_time_list[ngb] = rg1.expovariate(sigma)
                                 seir_list[ngb] = 1
-            elif seir_list[index] == 1:
-                # E --> I
+            elif seir_list[index] == 1 or seir_list[index] == 6:
+                # (E --> I or Is) or Q_EI --> Is
                 set_contagion(index)
             elif seir_list[index] == 2:
                 # I --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
-            elif seir_list[index] == 4 or seir_list[index] == 6:
-                # Is --> R or Q_EI --> R
+            elif seir_list[index] == 4:
+                # Is --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 5:
@@ -1701,8 +1709,7 @@ if __name__ == '__main__':
         flush_structures()
         get_result()
 
-
-        plot_seir_result()
+        #plot_seir_result()
         print("done")
         # parse_input_file()
         # simulate_tracing()
@@ -1785,6 +1792,5 @@ if __name__ == '__main__':
     else:
         print("Wrong Paramters!")
         print("If you want to run a single seir simulation run:\npython epidemic_sim.py \"simulate\"\n")
-        print("If you want to run a single tracing simulation run:\npython epidemic_sim.py \"tracing\"\n")
         print(
-            "If you want to run multiple tracing simulation run:\npython epidemic_sim.py \"n_tracing\" nunber_of_simulations\n")
+            "If you want to run multiple tracing simulation run:\npython epidemic_sim.py \"tracing\" nunber_of_simulations\n")
