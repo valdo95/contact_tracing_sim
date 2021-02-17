@@ -14,9 +14,9 @@ min_office_size: 10
 max_office_size: 20
 min_transp_size: 40
 max_transp_size: 200
-fr_app_users: 0.3
-pr_diagnosis: 0.5
-pr_notification: 0.4
+fr_app_users: 0.4
+pr_diagnosis: 0.4
+pr_notification: 0.5
 # if seed == 0 viene settato da SO
 seed: 1
 window_size: 14

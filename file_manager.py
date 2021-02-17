@@ -28,7 +28,7 @@ def get_path_avg_files_tracing():
                data["avg_qst_path"], data["avg_qeit_path"]
 
 
-def calculate_average(file, size=-1):
+def calculate_average(file, size=-1, n_node=1):
     reader = csv.reader(file)
     if size == -1:
         size = len(next(reader))  # Read first line and count columns
@@ -37,9 +37,9 @@ def calculate_average(file, size=-1):
     n_row = 0
     for row in reader:
         st_avg = [st_avg[i] + int(row[i]) for i in range(0, size)]
-        n_row+=1
+        n_row += 1
     for index in range(0, size):
-        st_avg[index] = st_avg[index] / n_row
+        st_avg[index] = st_avg[index] / (n_row*n_node)
     return st_avg, size
 
 
@@ -47,18 +47,19 @@ def calculate_average_from_csv_seir():
     size = -1
     res = []
     for file_path in get_path_files_seir():
+        #print(get_path_files_seir())
         with open(file_path, 'r') as file:
             [avg, size] = calculate_average(file, size)
             res.append(avg)
     return res
 
 
-def calculate_average_from_csv_tracing():
+def calculate_average_from_csv_tracing(n_node=1):
     size = -1
     res = []
     for file_path in get_path_files_tracing():
         with open(file_path, 'r') as file:
-            [avg, size] = calculate_average(file, size)
+            [avg, size] = calculate_average(file, size, n_node=n_node)
             res.append(avg)
     return res
 
