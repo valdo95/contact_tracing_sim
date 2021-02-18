@@ -4,11 +4,33 @@ E' un'implementazione Python di un Simulatore SEIR stocastico a cui vengono inte
 
 ## Istallazione
 
-1. Install Python 3.6
-2. Install EoN (non indispensabile)
+1. Installa un venv Python (in alternativa installa Python 3+)
+   - Controlla se è presente pip
+
+    ```bash  
+    pip -h  
+    ```
+   - Installa virtualenv e crea un venv
+    
+    ```bash   
+    pip install virtualenv
+    virtualenv path_directory
+    ```
+   - Attiva il venv
+   ```bash   
+    source path_directory/bin/activate
+    ```
+
+   Quando si ha terminato l'installazione e l'esecuzione si può disattivare
+   ```bash   
+    deactivate
+    ```
+   
+2. Installa Networkx e Matplotlib
 ```bash
-pip install EoN
-python epidemic_sim.py
+
+pip install networkx
+pip install matplotlib
 ```
 
 ## Esecuzione

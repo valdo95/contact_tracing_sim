@@ -1,15 +1,15 @@
 import graph_manager as gm
+import file_manager as fm
+import sys
+import gc
 import random
-import EoN as eon  # not used
+# import EoN as eon  # not used
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import math
 from itertools import islice
 import time
 import yaml
-import sys
-import gc
-import file_manager as fm
 
 home_step = 0  # step for days
 work_step = 0  # step for days
@@ -85,6 +85,10 @@ contact_matrix = []  # [ngb, timestamp1, timestamp2] contact list
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
 
 graph_ext = []  # "Transport", "School","Office","Families"
+# GRAPH DENSITY
+school_density = 0
+office_density = 0
+transport_density = 0
 
 office_partion = []
 school_partition = []
@@ -140,7 +144,7 @@ def create_transport_network():
     # print("families: " + str(families))
     temp_graphs = []
     for bus in transp_part:
-        temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1))
+        temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1,density=transport_density))
     res = gm.nx.union_all(temp_graphs)
     res.name = "Transport"
     return res
@@ -155,64 +159,64 @@ def create_school_work_network():
     # print("school partitions: " + str(school_partitions))
     temp_graphs = []
     for office in office_partitions:
-        temp_graphs.append(gm.create_office_graph(office, 0.3, rg=rg1))
+        temp_graphs.append(gm.create_office_graph(office,density=office_density, rg=rg1))
     office_graph = gm.nx.union_all(temp_graphs)
     office_graph.name = "Office"
     temp_graphs = []
     for school in school_partitions:
-        temp_graphs.append(gm.create_school_graph(school, 0.3, rg=rg1))
+        temp_graphs.append(gm.create_school_graph(school,density=school_density, rg=rg1))
     school_graph = gm.nx.union_all(temp_graphs)
     school_graph.name = "School"
     return office_graph, school_graph
 
 
-def compare_with_EON(comparison_type):
-    global n
-    global n_days
-    global beta
-    global gamma
-    global n_inf
-    global step_p_day
-    with open("config_files/" + str(comparison_type) + "_input.yaml", 'r') as stream:
-        data = yaml.safe_load(stream)
-        n = data["n_nodes"]  # number of total node
-        n_days = data["n_days"]  # number of days
-        beta = data["beta"]
-        gamma = data["gamma"]
-        fr_inf = data["fr_inf"]
-        step_p_day = data["step_p_day"]
-        print("\nGraph and Time Parameters: \n")
-        print("Number of Nodes: .......... " + str(n))
-        print("n days: ................... " + str(n_days))
-        print("Step per Day............... " + str(step_p_day))
-
-        print("\nEpidemic Parameters: \n")
-        print("Beta: ..................... " + str(beta))
-        print("Gamma: .................... " + str(gamma))
-        print("Fract Infected: ........... " + str(fr_inf))
-        print()
-
-    # gamma = 1 - numpy.nextafter(1., 0.)
-    # sigma = 50  # sys.maxsize #genero numero molto grande
-    n_inf = int(fr_inf * n)
-    initialize_sir()
-    graph = gm.nx.erdos_renyi_graph(n, 0.2)
-    input()
-    print("Start EON Simulation")
-    epidemic(graph, n_days)
-
-    print("End EON Simulation")
-    input()
-    flush_structures()
-    print_SIR_count()
-    initialize_sir()
-    # print(sir_list)
-    # print(res_time_list)
-    # input()
-    print("Start sim_SIR Simulation")
-    sim_SIR_eff(graph, 0, n_days * step_p_day)
-    print("End sim_SIR Simulation")
-    plot_SIR_result("comparison_sim")
+# def compare_with_EON(comparison_type):
+#     global n
+#     global n_days
+#     global beta
+#     global gamma
+#     global n_inf
+#     global step_p_day
+#     with open("config_files/" + str(comparison_type) + "_input.yaml", 'r') as stream:
+#         data = yaml.safe_load(stream)
+#         n = data["n_nodes"]  # number of total node
+#         n_days = data["n_days"]  # number of days
+#         beta = data["beta"]
+#         gamma = data["gamma"]
+#         fr_inf = data["fr_inf"]
+#         step_p_day = data["step_p_day"]
+#         print("\nGraph and Time Parameters: \n")
+#         print("Number of Nodes: .......... " + str(n))
+#         print("n days: ................... " + str(n_days))
+#         print("Step per Day............... " + str(step_p_day))
+#
+#         print("\nEpidemic Parameters: \n")
+#         print("Beta: ..................... " + str(beta))
+#         print("Gamma: .................... " + str(gamma))
+#         print("Fract Infected: ........... " + str(fr_inf))
+#         print()
+#
+#     # gamma = 1 - numpy.nextafter(1., 0.)
+#     # sigma = 50  # sys.maxsize #genero numero molto grande
+#     n_inf = int(fr_inf * n)
+#     initialize_sir()
+#     graph = gm.nx.erdos_renyi_graph(n, 0.2)
+#     input()
+#     print("Start EON Simulation")
+#     epidemic(graph, n_days)
+#
+#     print("End EON Simulation")
+#     input()
+#     flush_structures()
+#     print_SIR_count()
+#     initialize_sir()
+#     # print(sir_list)
+#     # print(res_time_list)
+#     # input()
+#     print("Start sim_SIR Simulation")
+#     sim_SIR_eff(graph, 0, n_days * step_p_day)
+#     print("End sim_SIR Simulation")
+#     plot_SIR_result("comparison_sim")
 
 
 # def validation_0():
@@ -1445,38 +1449,38 @@ def plot_seir_result(filename, offset=0):
 #     r_t.append(len(r_list))
 
 
-def epidemic(graph, n_days):
-    global beta
-    mu = gamma
-
-    # scelgo random gli infetti iniziali
-    list_nodes = list(graph.nodes())
-    rg1.shuffle(list_nodes)
-    initial_infections = list_nodes[0:n_inf]
-    sim = eon.fast_SIR(graph, beta, mu, initial_infecteds=initial_infections, tmax=n_days, return_full_data=True)
-    t = sim.t()
-    S = sim.S()  # numero suscettibili ad ogni istante
-    I = sim.I()  # numero infetti ad ogni istante
-    R = sim.R()  # numero rimossi ad ogni istante
-
-    r_per = R[-1] / len(graph.nodes()) * 100
-    s_per = S[-1] / len(graph.nodes()) * 100
-    i_per = I[-1] / len(graph.nodes()) * 100
-
-    # Print Result
-    plt.plot(t, S, label='S')
-    plt.plot(t, I, label='I')
-    plt.plot(t, R, label='R')
-    plt.legend()
-    plt.savefig('img/comparison_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + '_SIR.png')
-    plt.close()
-
-    # print('animation...')
-    # ani = sim.animate(ts_plots=['I', 'SIR'], node_size=4)
-    # writer = animation.PillowWriter('fps=2')
-    # # ani.save('SIR.mp4',writer=Writer,fps=5, extra_args=['-vcodec', 'libx264'])
-    # ani.save('compare_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + ' SIR.gif')
-    plt.close()
+# def epidemic(graph, n_days):
+#     global beta
+#     mu = gamma
+#
+#     # scelgo random gli infetti iniziali
+#     list_nodes = list(graph.nodes())
+#     rg1.shuffle(list_nodes)
+#     initial_infections = list_nodes[0:n_inf]
+#     sim = eon.fast_SIR(graph, beta, mu, initial_infecteds=initial_infections, tmax=n_days, return_full_data=True)
+#     t = sim.t()
+#     S = sim.S()  # numero suscettibili ad ogni istante
+#     I = sim.I()  # numero infetti ad ogni istante
+#     R = sim.R()  # numero rimossi ad ogni istante
+#
+#     r_per = R[-1] / len(graph.nodes()) * 100
+#     s_per = S[-1] / len(graph.nodes()) * 100
+#     i_per = I[-1] / len(graph.nodes()) * 100
+#
+#     # Print Result
+#     plt.plot(t, S, label='S')
+#     plt.plot(t, I, label='I')
+#     plt.plot(t, R, label='R')
+#     plt.legend()
+#     plt.savefig('img/comparison_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + '_SIR.png')
+#     plt.close()
+#
+#     # print('animation...')
+#     # ani = sim.animate(ts_plots=['I', 'SIR'], node_size=4)
+#     # writer = animation.PillowWriter('fps=2')
+#     # # ani.save('SIR.mp4',writer=Writer,fps=5, extra_args=['-vcodec', 'libx264'])
+#     # ani.save('compare_EON_beta_' + str(beta) + ' ' + 'mu_' + str(mu) + ' SIR.gif')
+#     plt.close()
 
 
 # def initialize_infected():
@@ -1517,7 +1521,7 @@ def get_tracing_result():
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
     else:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
-    print(s_t)
+
     fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
     print("End avg calc")
     plot_seir_result("avg_seir_n_sim=" + str(n_s), offset=start_contagion)
@@ -1608,6 +1612,10 @@ def parse_input_file():
     global is_sparse
     global fr_far_contacts
 
+    global school_density
+    global office_density
+    global transport_density
+
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
         n = data["n_nodes"]  # number of total node
@@ -1634,6 +1642,9 @@ def parse_input_file():
         is_sparse = data["is_sparse"] == True
         fr_far_contacts = data["fr_far_contacts"]
         start_contagion = data["start_contagion"]
+        school_density = data["school_density"]
+        office_density = data["office_density"]
+        transport_density = data["transport_density"]
         if data["Transport"] != 0:
             graph_ext.append("Transport")
         if data["Office"] != 0:
