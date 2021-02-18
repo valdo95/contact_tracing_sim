@@ -40,28 +40,29 @@ pip install matplotlib
    
     - Per lanciare una simulazione seir, senza creare strutture inutili:
         ```bash
-        python python epidemic_sim.py "seir"  n_s abs
+        python3.6 epidemic_sim.py "seir"  n_s abs
         ```
         Esempio:
         ```bash
-        python python epidemic_sim.py "seir"  10 True
+        python3.6 epidemic_sim.py "seir"  10 True
         ```
 
     - Per lanciare una simulazione con tracciamento:
         ```bash
-        python epidemic_sim.py "tracing" n_s abs
+        python3.6 epidemic_sim.py "tracing" n_s abs
         ```
         Esempio:
         ```bash
-        python python epidemic_sim.py "tracing"  10 True
+        python3.6 python epidemic_sim.py "tracing"  10 True
         ```
    
     - Per stampare i grafici del tracciamento dai file contenenti le medie:
         ```bash
-        python python epidemic_sim.py "result_from_avg"
+        python3.6 epidemic_sim.py "result_from_avg"
+        ```
 
     - Per stampare i risultati dai dati e calcolare le medie:
         ```bash
-        python python epidemic_sim.py "result"
+        python3.6 epidemic_sim.py "result"
         ```
 ## License
