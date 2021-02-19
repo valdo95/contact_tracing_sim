@@ -1,3 +1,4 @@
+from multiprocessing import Process, Lock
 import graph_manager as gm
 import file_manager as fm
 import sys
@@ -28,6 +29,7 @@ n_step_transp = 0  # number of step on public transport
 fr_station_user = 0  # fraction of people that use train station
 fr_symptomatic = 0  # fraction of symptomatic
 initial_seed = 0
+n_proc = 0  # Number of free core that can run tihs code
 start_contagion = 0  # time of first contagion
 rg1 = None
 fam_graph = None
@@ -94,15 +96,22 @@ office_partion = []
 school_partition = []
 transp_partition = []
 
+p_name = 0  # process name
+tracing = False  # False --> SEIR, True --> SEIR +tracing
 is_sparse = False
 fr_far_contacts = False
+# Initial Seed for MultiProc Sim: they have been generated from random.org (I didn't use python rng to avoid overlapping)
+initial_seeds = [5628732, 6653, 369944, 980321, 930450, 6879238, 1260548, 4566454, 8015103, 2418865, 7687303, 2803321,
+                 278620, 3564, 575677, 706267, 49141, 935732, 277247, 694306]
 
 
-def set_random_stream():
-    if initial_seed != 0:
+def set_random_stream(proc_seed=0):
+    if initial_seed == 0:
+        return random.Random()
+    elif proc_seed == 0:
         return random.Random(initial_seed)
     else:
-        return random.Random()
+        return random.Random(proc_seed)
 
 
 def generate_partitions(input_list, min_size=1, max_size=6):
@@ -144,7 +153,7 @@ def create_transport_network():
     # print("families: " + str(families))
     temp_graphs = []
     for bus in transp_part:
-        temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1,density=transport_density))
+        temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1, density=transport_density))
     res = gm.nx.union_all(temp_graphs)
     res.name = "Transport"
     return res
@@ -159,12 +168,12 @@ def create_school_work_network():
     # print("school partitions: " + str(school_partitions))
     temp_graphs = []
     for office in office_partitions:
-        temp_graphs.append(gm.create_office_graph(office,density=office_density, rg=rg1))
+        temp_graphs.append(gm.create_office_graph(office, density=office_density, rg=rg1))
     office_graph = gm.nx.union_all(temp_graphs)
     office_graph.name = "Office"
     temp_graphs = []
     for school in school_partitions:
-        temp_graphs.append(gm.create_school_graph(school,density=school_density, rg=rg1))
+        temp_graphs.append(gm.create_school_graph(school, density=school_density, rg=rg1))
     school_graph = gm.nx.union_all(temp_graphs)
     school_graph.name = "School"
     return office_graph, school_graph
@@ -446,6 +455,7 @@ def flush_structures():
     global e_t
     global i_t
     global r_t
+    global is_t
     global qs_t
     global qei_t
 
@@ -552,7 +562,7 @@ def update_node_contacts(node, list_2, timestamp, check):
     res = []
     while i < len(contact_list[node]) and j < len(list_2):
         if contact_list[node][i][0] < list_2[j]:
-            #if check:
+            # if check:
             res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][2]])
             i += 1
         elif contact_list[node][i][0] == list_2[j]:  # doppioni
@@ -572,7 +582,7 @@ def update_node_contacts(node, list_2, timestamp, check):
             j += 1
     # Elementi rimasti
     while i < len(contact_list[node]):
-        #if check:
+        # if check:
         res.append([contact_list[node][i][0], contact_list[node][i][1], contact_list[node][i][2]])
         i += 1
     while j < len(list_2):
@@ -638,7 +648,7 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
         # input()
 
 
-def initialize_constant():
+def initialize_constant(seed):
     global gamma
     global sigma
     global beta
@@ -651,7 +661,7 @@ def initialize_constant():
     eta = eta * (1 / step_p_day)
     # if (step_p_day>96):
     #     beta = beta * (96 / step_p_day)
-    rg1 = set_random_stream()
+    rg1 = set_random_stream(seed)
 
 
 def initialize_tracing():
@@ -783,7 +793,7 @@ def sim_tracing():
     global fam_graph
 
     for day in range(0, n_days):
-        print("day " + str(day))
+        print("Day " + str(day) + " Process " + str(p_name))
         # HOME
         end_1 = day + n_step_home
         seir_tracing(fam_graph, day, end_1, day=day)
@@ -843,6 +853,48 @@ def sim_tracing_old():
             delete_old_contacts(day)
 
 
+def proc_run_sim(lock, p_seed):
+    global office_school_graph
+    global office_graph
+    global school_graph
+    global transp_graph
+    global fam_graph
+    global p_name
+
+    # parse_input_file()
+    p_name = p_seed
+    initialize_constant(p_name)
+    print("Start Process " + str(p_name))
+    print("Tracing " + str(tracing))
+    print("N S " + str(n_s))
+    for curr_sim in range(0, n_s):
+        flush_structures()
+        # CREATE GRAPH
+        initialize_tracing()
+        # start_time = time.time()
+        fam_graph = create_families_network()
+        update_contacts(fam_graph, 0)
+        [office_graph, school_graph] = create_school_work_network()
+        office_school_graph = gm.nx.union(office_graph, school_graph)
+        transp_graph = create_transport_network()
+        gc.collect()
+        print("Process " + str(p_name) + "SIMULATION " + str(curr_sim))
+        if tracing:
+            sim_tracing()
+            lock.acquire()
+            fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
+            lock.release()
+            # plot_seir_tracing(p_name, offset=start_contagion)
+            print_tracing_count()
+
+        else:
+            sim_seir()
+            lock.acquire()
+            fm.write_csv_seir(s_t, e_t, i_t, r_t)
+            lock.release()
+            print_SEIR_count()
+
+
 def run_sim(tracing):
     global office_school_graph
     global office_graph
@@ -850,7 +902,7 @@ def run_sim(tracing):
     global transp_graph
     global fam_graph
 
-    initialize_constant()
+    initialize_constant(0)
     for curr_sim in range(0, n_s):
         flush_structures()
 
@@ -1015,7 +1067,8 @@ def set_contagion(inf):
                                 # S --> Q-S
                                 seir_list[contact_list[inf][index][0]] = 5
                                 res_time_list[contact_list[inf][index][0]] = rg1.expovariate(eta)
-                            if seir_list[contact_list[inf][index][0]] == 1 or seir_list[contact_list[inf][index][0]] == 2:
+                            if seir_list[contact_list[inf][index][0]] == 1 or seir_list[
+                                contact_list[inf][index][0]] == 2:
                                 # E or I --> Q-EI
                                 seir_list[contact_list[inf][index][0]] = 6
                                 res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
@@ -1524,8 +1577,8 @@ def get_tracing_result():
 
     fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
     print("End avg calc")
-    plot_seir_result("avg_seir_n_sim=" + str(n_s), offset=start_contagion)
-    plot_seir_tracing("avg_tracing_n_sim=" + str(n_s), offset=start_contagion)
+    plot_seir_result("avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+    plot_seir_tracing("avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
 
 
 def get_seir_result():
@@ -1541,7 +1594,7 @@ def get_seir_result():
         [s_t, e_t, i_t, r_t] = fm.calculate_average_from_csv_seir()
     fm.write_csv_seir(s_t, e_t, i_t, r_t, avg=True)
     print("End avg calc")
-    plot_seir_result("avg_seir_n_sim=" + str(n_s), offset=start_contagion)
+    plot_seir_result("avg_seir_n_sim=" + str(n_s*n_proc), offset=start_contagion)
 
 
 def plot_result_from_avg():
@@ -1605,6 +1658,7 @@ def parse_input_file():
     global n_days_isol
     global n_days_quar
     global initial_seed
+    global n_proc
 
     global pr_diagnosis
     global pr_notification
@@ -1645,6 +1699,7 @@ def parse_input_file():
         school_density = data["school_density"]
         office_density = data["office_density"]
         transport_density = data["transport_density"]
+        n_proc = data["n_proc"]
         if data["Transport"] != 0:
             graph_ext.append("Transport")
         if data["Office"] != 0:
@@ -1688,6 +1743,17 @@ def parse_input_file():
         print("Eta: ...................... " + str(eta))
         print("Number Initial Infected: .. " + str(n_inf))
         print()
+
+
+def identify_process():
+    global beta
+    print("Start Process")
+    beta = 1
+    beta = beta + 1
+    time.sleep(2)
+    beta = beta + 1
+    print(multiprocessing.current_process().name)
+    print(beta)
 
 
 def wrong_param():
@@ -1741,7 +1807,7 @@ if __name__ == '__main__':
             fm.clear_csv()
             fm.clear_avg_csv()
             parse_input_file()
-            print("Numero simulazioni: " + str(n_s))
+            print("Numero Simulazioni: " + str(n_s))
             run_sim(True)
             flush_structures()
             get_tracing_result()
@@ -1750,6 +1816,39 @@ if __name__ == '__main__':
             print("done")
             # parse_input_file()
             # simulate_tracing()
+        elif sys.argv[1] == "multiproc":
+            if len(sys.argv) < 3 or (sys.argv[2] != "tracing" and sys.argv[2] != "seir"):
+                sys.exit("Second Parameter must be \"tracing\" or \"seir\"")
+            tracing = sys.argv[2] == "tracing"
+            if len(sys.argv) < 4:
+                sys.exit("Insert number of simulation!")
+            n_s = int(sys.argv[3])
+            if len(sys.argv) < 5:
+                sys.exit("Insert True if you want plot y as a probability!")
+            abs = True == sys.argv[4]
+            if n_proc > len(initial_seeds):
+                sys.exit("n_proc must be leq then " + str(len(initial_seeds)) + "!")
+
+            var = 2
+            fm.clear_csv()
+            fm.clear_avg_csv()
+            parse_input_file()
+            proc_list = []  # lista processi
+            lock = Lock()
+            for index in range(0, n_proc):
+                proc_list.append(
+                    Process(name=initial_seeds[index], args=(lock, initial_seeds[index]), target=proc_run_sim))
+                proc_list[index].start()
+            for proc in proc_list:
+                proc.join()
+                print("Process " + str(proc.name) + " has finished")
+            print("Results processing...")
+            flush_structures()
+            if tracing:
+                get_tracing_result()
+            else:
+                get_seir_result()
+            print("You can download the results")
         elif sys.argv[1] == "write_res":
             # fm.clear_csv()
             # fm.clear_avg_csv()
