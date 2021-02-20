@@ -1,5 +1,5 @@
-n_nodes: 100
-n_days: 25
+n_nodes: 800
+n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
 # step_p_day: 4
@@ -15,9 +15,9 @@ max_office_size: 20
 min_transp_size: 40
 max_transp_size: 200
 # TRACING PARAM
-fr_app_users: 0.0
-pr_diagnosis: 0.0
-pr_notification: 0.0
+fr_app_users: 0.3
+pr_diagnosis: 0.45
+pr_notification: 0.5
 fr_far_contacts: 0.0
 # GRAPH DENSITY
 school_density: 0.3
@@ -25,12 +25,12 @@ office_density: 0.15
 transport_density: 0.08
 # if seed == 0 viene settato da SO
 seed: 1
-n_proc: 10
+n_proc: 2
 window_size: 14
 is_sparse: False
 start_contagion: 1
 # STAZIONI CHECK
 Transport: 1
 Office: 0
-School: 0
+School: 1
 Families: 0

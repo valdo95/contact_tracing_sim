@@ -9,8 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import math
 from itertools import islice
+import itertools
 import time
 import yaml
+
+# NUOVO
 
 home_step = 0  # step for days
 work_step = 0  # step for days
@@ -95,6 +98,7 @@ transport_density = 0
 office_partion = []
 school_partition = []
 transp_partition = []
+fam_partition = []
 
 p_name = 0  # process name
 tracing = False  # False --> SEIR, True --> SEIR +tracing
@@ -136,11 +140,11 @@ def create_partions():
 
 
 def create_families_network():
+    global fam_partition
     rg1.shuffle(people_tot)
-    families = list(generate_partitions(people_tot, min_family_size, max_familiy_size))
-    # print("families: " + str(families))
+    fam_partition = list(generate_partitions(people_tot, min_family_size, max_familiy_size))
     temp_graphs = []
-    for family in families:
+    for family in fam_partition:
         temp_graphs.append(gm.create_home_graph(family))
     res = gm.nx.union_all(temp_graphs)
     res.name = "Families"
@@ -148,11 +152,12 @@ def create_families_network():
 
 
 def create_transport_network():
+    global transp_partition
     rg1.shuffle(people_tot)
-    transp_part = list(generate_partitions(people_tot, min_transp_size, max_transp_size))
+    transp_partition = list(generate_partitions(people_tot, min_transp_size, max_transp_size))
     # print("families: " + str(families))
     temp_graphs = []
-    for bus in transp_part:
+    for bus in transp_partition:
         temp_graphs.append(gm.create_public_transport_graph(bus, rg=rg1, density=transport_density))
     res = gm.nx.union_all(temp_graphs)
     res.name = "Transport"
@@ -160,19 +165,21 @@ def create_transport_network():
 
 
 def create_school_work_network():
+    global school_partition
+    global office_partion
     rg1.shuffle(people_tot)
-    office_partitions = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
-    school_partitions = list(
+    office_partition = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
+    school_partition = list(
         generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
     # print("office partitions: " + str(office_partitions))
     # print("school partitions: " + str(school_partitions))
     temp_graphs = []
-    for office in office_partitions:
+    for office in office_partition:
         temp_graphs.append(gm.create_office_graph(office, density=office_density, rg=rg1))
     office_graph = gm.nx.union_all(temp_graphs)
     office_graph.name = "Office"
     temp_graphs = []
-    for school in school_partitions:
+    for school in school_partition:
         temp_graphs.append(gm.create_school_graph(school, density=school_density, rg=rg1))
     school_graph = gm.nx.union_all(temp_graphs)
     school_graph.name = "School"
@@ -595,41 +602,74 @@ def update_node_contacts(node, list_2, timestamp, check):
     contact_list[node] = res
 
 
-def update_matrix(graph, timestamp, node_id, check, second_lev=False):
+def update_matrix(graph, timestamp, node_id, check, rnd_partition):
     global contact_matrix
     # temp = list(gm.nx.neighbors(graph, node_id))
     # ngbs = [temp[index] for index in range(0, int(len(temp) * pr_notification))]
     # temp.clear()
     ngbs = list(gm.nx.neighbors(graph, node_id))
+    if check:
+        val = [timestamp, timestamp]
+    else:
+        val = [timestamp, -1]
     for ngb in ngbs:
         # print(check)
         # input()
-        if check:
-            if ngb < node_id:
-                contact_matrix[node_id][ngb] = [timestamp, timestamp]
-            else:
-                contact_matrix[ngb][node_id] = [timestamp, timestamp]
+        if ngb < node_id:
+            contact_matrix[node_id][ngb] = val
         else:
-            if ngb < node_id:
-                contact_matrix[node_id][ngb] = [timestamp, -1]
-            else:
-                contact_matrix[ngb][node_id] = [timestamp, -1]
+            contact_matrix[ngb][node_id] = val
 
-    if fr_far_contacts != 0:
-        temp = list(graph.nodes)
-        # rg1.shuffle(temp)
-        # print(temp)
-        random_list = [temp[index] for index in range(0, int(len(temp) * fr_far_contacts))]
-        # print(random_list)
-        # input()
-        for elem in random_list:
-            if elem < node_id:
-                contact_matrix[node_id][elem][1] = timestamp
-            elif node_id > elem:
-                contact_matrix[elem][node_id][1] = timestamp
+
+    for f_ngb in rnd_partition:
+        if f_ngb < node_id:
+            contact_matrix[node_id][f_ngb][1] = timestamp
+        elif node_id > f_ngb:
+            contact_matrix[f_ngb][node_id][1] = timestamp
+
+
+def bfs(graph, node, max_nodes):
+    res = []
+    for ngb in gm.nx.neighbors(graph, elem):
+        res.append(ngb)
 
 
 def update_contacts(graph, timestamp, g_is_sorted=False):
+    check = False
+    for elem in graph_ext:
+        if elem == graph.name:
+            check = True
+
+    if is_sparse:
+        for node_id in graph.nodes():
+            if g_is_sorted:
+                nbs = list(gm.nx.neighbors(graph, node_id))
+            else:
+                nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
+            update_node_contacts(node_id, nbs, timestamp, check)
+    else:
+        list_nodes = []
+        if graph.name == "Transport":
+            list_nodes = transp_partition
+            # print("Tra: "+str(list_nodes))
+        elif graph.name == "School":
+            list_nodes = school_partition
+            # print("Sch: " + str(list_nodes))
+        elif graph.name == "Office":
+            list_nodes = office_partion
+            # print("off: " + str(list_nodes))
+        elif graph.name == "Families":
+            list_nodes = fam_partition
+            # print("fam: " + str(list_nodes))
+        rnd_curr_partition = []
+        for partion in list_nodes:
+            if fr_far_contacts > 0:
+                rnd_curr_partition = partion[:int(len(partion) * fr_far_contacts)]
+            for node_id in partion:
+                update_matrix(graph, timestamp, node_id, check, rnd_curr_partition)
+
+
+def update_contacts_old(graph, timestamp, g_is_sorted=False):
     check = False
     for elem in graph_ext:
         if elem == graph.name:
@@ -643,6 +683,22 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
             update_node_contacts(node_id, nbs, timestamp, check)
         else:
             update_matrix(graph, timestamp, node_id, check)
+    # if graph.name == "Transport":
+    #     print("Transport")
+    #     print(transp_partition)
+    # if graph.name == "Families":
+    #     print("Families")
+    # if graph.name == "School":
+    #     print("School")
+    #     print(school_partition)
+    #     for elem in school_partition:
+    #         temp = elem [:int(len(elem)*fr_far_contacts)]
+    #         for subset in itertools.combinations(temp, 2):
+    #             print("school "+str(subset))
+
+    if graph.name == "Office":
+        print("Office")
+        print(office_partition)
 
         # print(str(node_id)+str(list(gm.nx.neighbors(graph, node_id))))
         # input()
@@ -655,6 +711,14 @@ def initialize_constant(seed):
     global eta
     global rg1
 
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    global is_t
+    global qs_t
+    global qei_t
+
     gamma = gamma * (1 / step_p_day)
     sigma = sigma * (1 / step_p_day)
     beta = beta  # * (1 / step_p_day)
@@ -662,6 +726,14 @@ def initialize_constant(seed):
     # if (step_p_day>96):
     #     beta = beta * (96 / step_p_day)
     rg1 = set_random_stream(seed)
+
+    s_t = [-1 for index in range(0, n_days * step_p_day)]
+    e_t = [-1 for index in range(0, n_days * step_p_day)]
+    i_t = [-1 for index in range(0, n_days * step_p_day)]
+    r_t = [-1 for index in range(0, n_days * step_p_day)]
+    is_t = [-1 for index in range(0, n_days * step_p_day)]
+    qs_t = [-1 for index in range(0, n_days * step_p_day)]
+    qei_t = [-1 for index in range(0, n_days * step_p_day)]
 
 
 def initialize_tracing():
@@ -676,6 +748,7 @@ def initialize_tracing():
     seir_list = [0 for elm in range(0, n)]
     res_time_list = [0 for elm in range(0, n)]
     app_people = [False for elem in range(0, n)]
+
     if is_sparse:
         contact_list = [[] for elem in range(0, n)]
     else:
@@ -795,8 +868,8 @@ def sim_tracing():
     for day in range(0, n_days):
         print("Day " + str(day) + " Process " + str(p_name))
         # HOME
-        end_1 = day + n_step_home
-        seir_tracing(fam_graph, day, end_1, day=day)
+        end_1 = day * step_p_day + n_step_home
+        seir_tracing(fam_graph, day * step_p_day, end_1, day=day)
         # TRANSP
         end_2 = int(end_1 + (n_step_transp / 2))
         transp_graph.clear()
@@ -861,38 +934,43 @@ def proc_run_sim(lock, p_seed):
     global fam_graph
     global p_name
 
+    print(graph_ext)
+    print(school_partition)
+    for elem in school_partition:
+        print(elem)
     # parse_input_file()
     p_name = p_seed
     initialize_constant(p_name)
     print("Start Process " + str(p_name))
-    print("Tracing " + str(tracing))
-    print("N S " + str(n_s))
     for curr_sim in range(0, n_s):
-        flush_structures()
+        # flush_structures()
         # CREATE GRAPH
         initialize_tracing()
         # start_time = time.time()
         fam_graph = create_families_network()
-        update_contacts(fam_graph, 0)
+        print("Process " + str(p_name) + " has fineshed to create families graph")
         [office_graph, school_graph] = create_school_work_network()
         office_school_graph = gm.nx.union(office_graph, school_graph)
+        print("Process " + str(p_name) + " has fineshed to create office-school graphs")
         transp_graph = create_transport_network()
+        print("Process " + str(p_name) + " has fineshed to create transport graph")
         gc.collect()
         print("Process " + str(p_name) + "SIMULATION " + str(curr_sim))
+
         if tracing:
             sim_tracing()
             lock.acquire()
             fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
             lock.release()
             # plot_seir_tracing(p_name, offset=start_contagion)
-            print_tracing_count()
+            # print_tracing_count()
 
         else:
             sim_seir()
             lock.acquire()
             fm.write_csv_seir(s_t, e_t, i_t, r_t)
             lock.release()
-            print_SEIR_count()
+            # print_SEIR_count()
 
 
 def run_sim(tracing):
@@ -1104,6 +1182,11 @@ def set_contagion(inf):
                                 seir_list[i] = 6
                                 res_time_list[i] = n_days_quar * step_p_day
                     i += 1
+                # LOW PRECISION
+                # print(graph_ext)
+                # if "School" in graph_ext:
+                #     print ("School"+str(school_partition))
+
 
     else:
         # E --> I
@@ -1151,10 +1234,10 @@ def seir(graph, start_t, end_t):
 
     for step in range(start_t, end_t):
         [n_s, n_e, n_i, n_r] = get_statistic_seir()
-        s_t.append(n_s)
-        e_t.append(n_e)
-        i_t.append(n_i)
-        r_t.append(n_r)
+        s_t[step] = n_s
+        e_t[step] = n_e
+        i_t[step] = n_i
+        r_t[step] = n_r
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
@@ -1190,15 +1273,16 @@ def seir_tracing(graph, start_t, end_t, day):
     global res_time_list
 
     update = 0
+    # print("range: " + str(start_t)+" "+str(end_t))
     for step in range(start_t, end_t):
         [n_s, n_e, n_i, n_r, n_is, n_qs, n_qei] = get_statistic_seir_tracing()
-        s_t.append(n_s)
-        e_t.append(n_e)
-        i_t.append(n_i)
-        r_t.append(n_r)
-        is_t.append(n_is)
-        qs_t.append(n_qs)
-        qei_t.append(n_qei)
+        s_t[step] = n_s
+        e_t[step] = n_e
+        i_t[step] = n_i
+        r_t[step] = n_r
+        is_t[step] = n_is
+        qs_t[step] = n_qs
+        qei_t[step] = n_qei
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
@@ -1215,12 +1299,8 @@ def seir_tracing(graph, start_t, end_t, day):
             elif seir_list[index] == 1 or seir_list[index] == 6:
                 # (E --> I or Is) or Q_EI --> Is (+ gestione notifiche)
                 set_contagion(index)
-            elif seir_list[index] == 2:
-                # I --> R
-                res_time_list[index] = 0
-                seir_list[index] = 3
-            elif seir_list[index] == 4:
-                # Is --> R
+            elif seir_list[index] == 2 or seir_list[index] == 4:
+                # I or Is --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 5:
@@ -1571,9 +1651,9 @@ def get_tracing_result():
     global qei_t
     print("Start avg calc ...")
     if abs:
-        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
-    else:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+    else:
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
 
     fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
     print("End avg calc")
@@ -1594,7 +1674,7 @@ def get_seir_result():
         [s_t, e_t, i_t, r_t] = fm.calculate_average_from_csv_seir()
     fm.write_csv_seir(s_t, e_t, i_t, r_t, avg=True)
     print("End avg calc")
-    plot_seir_result("avg_seir_n_sim=" + str(n_s*n_proc), offset=start_contagion)
+    plot_seir_result("avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
 
 
 def plot_result_from_avg():

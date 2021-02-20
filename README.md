@@ -26,11 +26,12 @@ E' un'implementazione Python di un Simulatore SEIR stocastico a cui vengono inte
     deactivate
     ```
    
-2. Installa Networkx e Matplotlib
+2. Installa Networkx, Matplotlib e Yaml
 ```bash
 
 pip install networkx
 pip install matplotlib
+pip install PyYAML
 ```
 
 ## Esecuzione
