@@ -22,7 +22,7 @@ def create_school_graph(nodes_list, density=0.4, rg=None):
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)
     res = remapping_nodes(graph, sorted(nodes_list))
     graph.name = "School"
-    #set_graph_name(res, graph_name)
+    # set_graph_name(res, graph_name)
     return res
 
 
@@ -31,7 +31,21 @@ def create_office_graph(nodes_list, density=0.2, rg=None):
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     res = remapping_nodes(graph, sorted(nodes_list))
     graph.name = "Office"
-    #set_graph_name(res, graph_name)
+    # set_graph_name(res, graph_name)
+    return res
+
+
+def create_family_graph(partitions):
+    res = nx.Graph()
+    for prt in partitions:
+        l = len(prt)
+        for index in range(0, l):
+            res.add_node(prt[index])
+        for index in range(0, l):
+            j = index + 1
+            while j < l:
+                res.add_edge(prt[index], prt[j])
+                j += 1
     return res
 
 
@@ -40,7 +54,7 @@ def create_home_graph(nodes_list):
     graph = nx.complete_graph(len(nodes_list))
     res = remapping_nodes(graph, nodes_list)
     graph.name = "Home"
-    #set_graph_name(res, graph_name)
+    # set_graph_name(res, graph_name)
     return res
 
 
@@ -59,7 +73,7 @@ def create_station_graph(nodes_list, density=0.05, rg=None):
     # end_time = time.time()
     # duration = round((end_time - start_time), 3)
     # print("duration relabeling: " + str(duration) + " Seconds")
-    #set_graph_name(res, graph_name)
+    # set_graph_name(res, graph_name)
     return res
 
 
@@ -68,7 +82,7 @@ def create_public_transport_graph(nodes_list, density=0.1, rg=None):
     graph = nx.erdos_renyi_graph(len(nodes_list), density, seed=rg)  # watts_strogatz_graph(len(nodes_list), 3, density)
     res = remapping_nodes(graph, sorted(nodes_list))
     graph.name = "Transport"
-    #set_graph_name(res, graph_name)
+    # set_graph_name(res, graph_name)
     return res
 
 

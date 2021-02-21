@@ -12,6 +12,7 @@ from itertools import islice
 import itertools
 import time
 import yaml
+import queue
 
 # NUOVO
 
@@ -51,6 +52,9 @@ abs = False  # if user want abs graph result
 
 pr_diagnosis = 0  # Prob of been diagnosed
 pr_notification = 0  # Prob of receive a Notification
+pr_false_neg = 0  # Prob falsi negativi
+pr_symt = 0  # Prob di avere sintomi
+max_far_ngb = 20  # Max far contact
 
 window_size = 0  # Size of the contact window
 
@@ -69,7 +73,7 @@ max_transp_size = 0
 # i_list = []  # list of infected nodes
 # r_list = []  # list of recovered/isolated/dead nodes
 
-seir_list = []  # 0-->S, 1-->E, 2-->I, 3-->R, 4-->Isol., 5-->Quarantine S, 6-->Quarantine EI
+seir_list = []  # 0-->S, 1-->E, 2-->I, 3-->R, 4-->Isol., 5-->Quarantine S, 6-->Quarantine EI, 7 --> Q-EIE
 sir_list = []  # 0-->S, 1-->I, 2-->R
 res_time_list = []  # res. times (if the node is I or E)
 s_t = []  # number of susceptible for each step (e. g. step_p_day = 10 -> step = 1 / 10)
@@ -78,7 +82,8 @@ i_t = []  # number of infected for each step
 r_t = []  # number of recovered/isolated/dead for each step
 is_t = []  # number of isolated nodes
 qs_t = []  # number of quarantined s for each step
-qei_t = []  # number of quarantined ei for each step
+qei_t = []  # number of quarantined ei notify by app for each step
+
 
 people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
@@ -95,11 +100,13 @@ school_density = 0
 office_density = 0
 transport_density = 0
 
+# PARTITION LISTS
 office_partion = []
 school_partition = []
 transp_partition = []
 fam_partition = []
 
+a_s_queue = []
 p_name = 0  # process name
 tracing = False  # False --> SEIR, True --> SEIR +tracing
 is_sparse = False
@@ -142,11 +149,16 @@ def create_partions():
 def create_families_network():
     global fam_partition
     rg1.shuffle(people_tot)
+    print("Shuffle done")
     fam_partition = list(generate_partitions(people_tot, min_family_size, max_familiy_size))
-    temp_graphs = []
-    for family in fam_partition:
-        temp_graphs.append(gm.create_home_graph(family))
-    res = gm.nx.union_all(temp_graphs)
+    print("Partizioni create")
+    # temp_graphs = []
+    # for family in fam_partition:
+    #     temp_graphs.append(gm.create_home_graph(family))
+    # print("Grafi partizioni creati")
+    # res = gm.nx.union_all(temp_graphs)
+    res = gm.create_family_graph(fam_partition)
+    print("Grafo famiglie creato")
     res.name = "Families"
     return res
 
@@ -466,6 +478,7 @@ def flush_structures():
     global qs_t
     global qei_t
 
+
     sir_list = []
     res_time_list = []
 
@@ -476,7 +489,8 @@ def flush_structures():
     is_t = []
     qs_t = []
     qei_t = []
-    gc.collect()
+
+
 
     # office_graph = None
     # school_graph = None
@@ -612,14 +626,14 @@ def update_matrix(graph, timestamp, node_id, check, rnd_partition):
         val = [timestamp, timestamp]
     else:
         val = [timestamp, -1]
-    for ngb in ngbs:
-        # print(check)
-        # input()
-        if ngb < node_id:
-            contact_matrix[node_id][ngb] = val
-        else:
-            contact_matrix[ngb][node_id] = val
-
+    if fr_far_contacts < 0.2:
+        for ngb in ngbs:
+            # print(check)
+            # input()
+            if ngb < node_id:
+                contact_matrix[node_id][ngb] = val
+            else:
+                contact_matrix[ngb][node_id] = val
 
     for f_ngb in rnd_partition:
         if f_ngb < node_id:
@@ -647,7 +661,7 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
             else:
                 nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
             update_node_contacts(node_id, nbs, timestamp, check)
-    else:
+    elif check:
         list_nodes = []
         if graph.name == "Transport":
             list_nodes = transp_partition
@@ -663,8 +677,12 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
             # print("fam: " + str(list_nodes))
         rnd_curr_partition = []
         for partion in list_nodes:
+            rg1.shuffle(partion)
             if fr_far_contacts > 0:
-                rnd_curr_partition = partion[:int(len(partion) * fr_far_contacts)]
+                l = int(len(partion) * fr_far_contacts)
+                if max_far_ngb < l:
+                    l = max_far_ngb
+                rnd_curr_partition = partion[:l]
             for node_id in partion:
                 update_matrix(graph, timestamp, node_id, check, rnd_curr_partition)
 
@@ -934,18 +952,16 @@ def proc_run_sim(lock, p_seed):
     global fam_graph
     global p_name
 
-    print(graph_ext)
-    print(school_partition)
-    for elem in school_partition:
-        print(elem)
-    # parse_input_file()
     p_name = p_seed
-    initialize_constant(p_name)
     print("Start Process " + str(p_name))
+    initialize_constant(p_name)
+    print("Costants have been initialized")
+
     for curr_sim in range(0, n_s):
         # flush_structures()
         # CREATE GRAPH
         initialize_tracing()
+        print("lists have been  initialized, Process " + str(p_name))
         # start_time = time.time()
         fam_graph = create_families_network()
         print("Process " + str(p_name) + " has fineshed to create families graph")
@@ -1078,116 +1094,113 @@ def get_statistic_sir():
     return count
 
 
+def app_notify(inf):
+    if is_sparse:
+        # LISTE CONTATTI
+        for elem in contact_list[inf]:
+            if app_people[elem[0]]:
+
+                if seir_list[elem[0]] == 0:
+                    # S --> Q-S
+                    seir_list[elem[0]] = 5
+                    res_time_list[elem[0]] = rg1.expovariate(eta)
+                if seir_list[elem[0]] == 1 or seir_list[elem[0]] == 2:
+                    # E or I --> Q-EI
+                    seir_list[elem[0]] = 6
+                    res_time_list[elem[0]] = n_days_quar * step_p_day
+
+    else:
+        # MATRICE CONTATTI
+        i = 0
+        while i < inf:
+            if contact_matrix[inf][i][0] >= 0 and app_people[i]:
+
+                if seir_list[i] == 0:
+                    # S --> Q-S
+                    seir_list[i] = 5
+                    res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
+                elif seir_list[i] == 1 or seir_list[i] == 2:
+                    # E or I --> Q-EI
+                    seir_list[i] = 6
+                    res_time_list[i] = n_days_quar * step_p_day
+            i += 1
+        i += 1
+        while i < n:
+            if contact_matrix[i][inf][0] >= 0 and app_people[i]:
+                if seir_list[i] == 0:
+                    # S --> Q-S
+                    seir_list[i] = 5
+                    res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
+                elif seir_list[i] == 1 or seir_list[i] == 2:
+                    # E or I --> Q-EI
+                    seir_list[i] = 6
+                    res_time_list[i] = n_days_quar * step_p_day
+            i += 1
+
+
+def station_notify(inf):
+    if is_sparse:
+        for index in range(0, len(contact_list[inf])):
+            # r = rg1.uniform(0.0, 1.0)
+            if contact_list[inf][index][
+                2] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                r = rg1.uniform(0.0, 1.0)
+                if r < pr_notification:
+                    if seir_list[contact_list[inf][index][0]] == 0:
+                        # S --> Q-S
+                        seir_list[contact_list[inf][index][0]] = 5
+                        res_time_list[contact_list[inf][index][0]] = rg1.expovariate(eta)
+                    if seir_list[contact_list[inf][index][0]] == 1 or seir_list[
+                        contact_list[inf][index][0]] == 2:
+                        # E or I --> Q-EI
+                        seir_list[contact_list[inf][index][0]] = 6
+                        res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
+
+    else:
+        i = 0
+        while i < inf:
+            if contact_matrix[inf][i][1] >= 0 and pr_notification > 0:
+                r = rg1.uniform(0.0, 1.0)
+                if r < pr_notification:
+                    if seir_list[i] == 0:
+                        # S --> Q-S
+                        seir_list[i] = 5
+                        res_time_list[i] = rg1.expovariate(eta)
+                    elif seir_list[i] == 1 or seir_list[i] == 2:
+                        # E or I --> Q-EI
+                        seir_list[i] = 6
+                        res_time_list[i] = n_days_quar * step_p_day
+            i += 1
+        i += 1
+        while i < n:
+
+            if contact_matrix[i][inf][
+                1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
+                r = rg1.uniform(0.0, 1.0)
+                if r < pr_notification:
+                    # S --> Q-S
+                    if seir_list[i] == 0:
+                        seir_list[i] = 5
+                        res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
+                    elif seir_list[i] == 1 or seir_list[i] == 2:
+                        # E or I --> Q-EIE
+                        seir_list[i] = 6
+                        res_time_list[i] = n_days_quar * step_p_day
+            i += 1
+
+
 def set_contagion(inf):
     global seir_list
     global res_time_list
     r1 = rg1.uniform(0.0, 1.0)
-    if r1 < pr_diagnosis:
-        # E --> I
+    if r1 < pr_symt: #* (1 - pr_false_neg):
+        # E --> Is
         seir_list[inf] = 4
         res_time_list[inf] = n_days_isol * step_p_day
-
-        # GESTIONE NOTIFICHE TRADIZIONALE
+        # GESTIONE NOTIFICHE
         if app_people[inf]:
-            if is_sparse:
-                # LISTE CONTATTI
-                for elem in contact_list[inf]:
-                    if app_people[elem[0]]:
-
-                        if seir_list[elem[0]] == 0:
-                            # S --> Q-S
-                            seir_list[elem[0]] = 5
-                            res_time_list[elem[0]] = rg1.expovariate(eta)
-                        if seir_list[elem[0]] == 1 or seir_list[elem[0]] == 2:
-                            # E or I --> Q-EI
-                            seir_list[elem[0]] = 6
-                            res_time_list[elem[0]] = n_days_quar * step_p_day
-
-            else:
-                # MATRICE CONTATTI
-                i = 0
-                while i < inf:
-                    if contact_matrix[inf][i][0] >= 0 and app_people[i]:
-
-                        if seir_list[i] == 0:
-                            # S --> Q-S
-                            seir_list[i] = 5
-                            res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
-                        elif seir_list[i] == 1 or seir_list[i] == 2:
-                            # E or I --> Q-EI
-                            seir_list[i] = 6
-                            res_time_list[i] = n_days_quar * step_p_day
-                    i += 1
-                i += 1
-                while i < n:
-                    if contact_matrix[i][inf][0] >= 0 and app_people[i]:
-                        if seir_list[i] == 0:
-                            # S --> Q-S
-                            seir_list[i] = 5
-                            res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
-                        elif seir_list[i] == 1 or seir_list[i] == 2:
-                            # E or I --> Q-EI
-                            seir_list[i] = 6
-                            res_time_list[i] = n_days_quar * step_p_day
-                    i += 1
-
-            # FINE GESTIONE NOTIFICHE TRADIZIONALE
-
-            # LOCALIZZAZIONE
-            if is_sparse:
-                for index in range(0, len(contact_list[inf])):
-                    # r = rg1.uniform(0.0, 1.0)
-                    if contact_list[inf][index][
-                        2] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
-                        r = rg1.uniform(0.0, 1.0)
-                        if r < pr_notification:
-                            if seir_list[contact_list[inf][index][0]] == 0:
-                                # S --> Q-S
-                                seir_list[contact_list[inf][index][0]] = 5
-                                res_time_list[contact_list[inf][index][0]] = rg1.expovariate(eta)
-                            if seir_list[contact_list[inf][index][0]] == 1 or seir_list[
-                                contact_list[inf][index][0]] == 2:
-                                # E or I --> Q-EI
-                                seir_list[contact_list[inf][index][0]] = 6
-                                res_time_list[contact_list[inf][index][0]] = n_days_quar * step_p_day
-
-            else:
-                i = 0
-                while i < inf:
-                    if contact_matrix[inf][i][1] >= 0 and pr_notification > 0:
-                        r = rg1.uniform(0.0, 1.0)
-                        if r < pr_notification:
-                            if seir_list[i] == 0:
-                                # S --> Q-S
-                                seir_list[i] = 5
-                                res_time_list[i] = rg1.expovariate(eta)
-                            elif seir_list[i] == 1 or seir_list[i] == 2:
-                                # E or I --> Q-EI
-                                seir_list[i] = 6
-                                res_time_list[i] = n_days_quar * step_p_day
-                    i += 1
-                i += 1
-                while i < n:
-
-                    if contact_matrix[i][inf][
-                        1] >= 0 and pr_notification > 0:  # pr_notification > 0 per motivi di effic.
-                        r = rg1.uniform(0.0, 1.0)
-                        if r < pr_notification:
-                            # S --> Q-S
-                            if seir_list[i] == 0:
-                                seir_list[i] = 5
-                                res_time_list[i] = rg1.expovariate(eta)  # n_days_quar * step_p_day
-                            elif seir_list[i] == 1 or seir_list[i] == 2:
-                                # E or I --> Q-EI
-                                seir_list[i] = 6
-                                res_time_list[i] = n_days_quar * step_p_day
-                    i += 1
-                # LOW PRECISION
-                # print(graph_ext)
-                # if "School" in graph_ext:
-                #     print ("School"+str(school_partition))
-
-
+            app_notify(inf)
+            station_notify(inf)
     else:
         # E --> I
         seir_list[inf] = 2
@@ -1261,6 +1274,73 @@ def seir(graph, start_t, end_t):
 
 
 def seir_tracing(graph, start_t, end_t, day):
+    global s_t
+    global e_t
+    global i_t
+    global r_t
+    global is_t
+    global qs_t
+    global qei_t
+
+    global seir_list
+    global res_time_list
+
+    update = 0
+    # print("range: " + str(start_t)+" "+str(end_t))
+    for step in range(start_t, end_t):
+        [n_s, n_e, n_i, n_r, n_is, n_qs, n_qei] = get_statistic_seir_tracing()
+        s_t[step] = n_s
+        e_t[step] = n_e
+        i_t[step] = n_i
+        r_t[step] = n_r
+        is_t[step] = n_is
+        qs_t[step] = n_qs
+        qei_t[step] = n_qei
+
+        for index in range(0, len(res_time_list)):
+            if res_time_list[index] > 0.5:
+                res_time_list[index] -= 1
+                if seir_list[index] == 2:  # index is I
+                    ngbs = graph.neighbors(index)
+                    for ngb in ngbs:
+                        if seir_list[ngb] == 0:
+                            r = rg1.uniform(0.0, 1.0)
+                            # S --> E
+                            if r < beta:
+                                seir_list[ngb] = 1
+                                res_time_list[ngb] = rg1.expovariate(sigma)
+            elif seir_list[index] == 1:
+                # E --> I or Is + gestione notifiche
+                set_contagion(index)
+            elif seir_list[index] == 6:
+                # Q_EI --> Is
+                # r = rg1.uniform(0.0, 1.0)
+                # if r < (1 - pr_false_neg):
+                seir_list[index] = 4
+                res_time_list[index] = n_days_isol * step_p_day
+                # GESTIONE NOTIFICHE
+                if app_people[index]:
+                    app_notify(index)
+                    station_notify(index)
+                # else:
+                #     # Q-EI --> I
+                #     seir_list[index] = 2
+                #     res_time_list[index] = rg1.expovariate(gamma)
+            elif seir_list[index] == 2 or seir_list[index] == 4:
+                # I or Is --> R
+                res_time_list[index] = 0
+                seir_list[index] = 3
+            elif seir_list[index] == 5:
+                # Q_S --> S
+                res_time_list[index] = 0
+                seir_list[index] = 0
+
+            if update == 0:
+                update_contacts(graph, day)
+            update += 1
+
+
+def seir_tracing_queue(graph, start_t, end_t, day):
     global s_t
     global e_t
     global i_t
@@ -1742,6 +1822,9 @@ def parse_input_file():
 
     global pr_diagnosis
     global pr_notification
+    global pr_symt
+    global pr_false_neg
+    global max_far_ngb
 
     global is_sparse
     global fr_far_contacts
@@ -1779,6 +1862,7 @@ def parse_input_file():
         school_density = data["school_density"]
         office_density = data["office_density"]
         transport_density = data["transport_density"]
+        max_far_ngb = data["max_far_ngb"]
         n_proc = data["n_proc"]
         if data["Transport"] != 0:
             graph_ext.append("Transport")
@@ -1815,13 +1899,16 @@ def parse_input_file():
         n_days_isol = data["n_days_isol"]
         n_days_quar = data["n_days_quar"]
         eta = data["eta"]
+        pr_symt = data["pr_symt"]
+        pr_false_neg = data["pr_false_neg"]
 
         print("\nEpidemic Parameters: \n")
         print("Beta: ..................... " + str(beta))
         print("Sigma: .................... " + str(sigma))
         print("Gamma: .................... " + str(gamma))
         print("Eta: ...................... " + str(eta))
-        print("Number Initial Infected: .. " + str(n_inf))
+        print("Pr sympt: ................. " + str(pr_symt))
+        print("Pr false neg: ............. " + str(pr_false_neg))
         print()
 
 
@@ -1896,7 +1983,7 @@ if __name__ == '__main__':
             print("done")
             # parse_input_file()
             # simulate_tracing()
-        elif sys.argv[1] == "multiproc":
+        elif sys.argv[1] == "mp":
             if len(sys.argv) < 3 or (sys.argv[2] != "tracing" and sys.argv[2] != "seir"):
                 sys.exit("Second Parameter must be \"tracing\" or \"seir\"")
             tracing = sys.argv[2] == "tracing"
@@ -1996,13 +2083,10 @@ if __name__ == '__main__':
             print(rg1.random())
         elif sys.argv[1] == "test":
 
-            graph = gm.nx.erdos_renyi_graph(15, 0.1)
-            contact_list = [[] for elem in range(0, 15)]
-            update_contacts(graph, 1)
-            graph = gm.nx.erdos_renyi_graph(15, 0.1)
-            update_contacts(graph, 2)
-            print_contact_list()
+            parts = [[1, 8, 7], [2], [3, 4, 5, 6]]
+            graph = gm.create_family_graph(parts)
+            gm.print_graph_with_labels_and_neighb(graph)
         else:
             wrong_param()
-    else:
-        wrong_param()
+else:
+    wrong_param()
