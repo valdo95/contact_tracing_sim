@@ -467,28 +467,58 @@ def second_validation(graphic_name):
 
 
 def flush_structures():
-    global sir_list
-    global res_time_list
-
-    global s_t
-    global e_t
-    global i_t
-    global r_t
-    global is_t
-    global qs_t
-    global qei_t
 
 
-    sir_list = []
-    res_time_list = []
+    global school_graph
+    global office_graph
+    global transp_graph
+    global fam_graph
+    global office_school_graph
 
-    s_t = []
-    e_t = []
-    i_t = []
-    r_t = []
-    is_t = []
-    qs_t = []
-    qei_t = []
+    global school_partition
+    global office_partion
+    global transp_partition
+    global fam_partition
+
+
+    # global s_t
+    # global e_t
+    # global i_t
+    # global r_t
+    # global is_t
+    # global qs_t
+    # global qei_t
+
+
+    office_graph.clear()
+    school_graph.clear()
+    transp_graph.clear()
+    fam_graph.clear()
+    office_school_graph.clear()
+    gc.collect()
+    office_graph = None
+    school_graph = None
+    transp_graph = None
+    fam_graph = None
+    office_school_graph = None
+    gc.collect()
+    office_partion.clear()
+    school_partition.clear()
+    transp_partition.clear()
+    fam_partition.clear()
+    gc.collect()
+
+
+
+    print("Old strctures have been cleared")
+
+    # s_t = []
+    # e_t = []
+    # i_t = []
+    # r_t = []
+    # is_t = []
+    # qs_t = []
+    # qei_t = []
 
 
 
@@ -722,12 +752,13 @@ def update_contacts_old(graph, timestamp, g_is_sorted=False):
         # input()
 
 
-def initialize_constant(seed):
+def first_allocation(seed):
     global gamma
     global sigma
     global beta
     global eta
     global rg1
+
 
     global s_t
     global e_t
@@ -736,6 +767,13 @@ def initialize_constant(seed):
     global is_t
     global qs_t
     global qei_t
+
+    global people_tot
+    global seir_list
+    global res_time_list
+    global app_people
+    global contact_list
+    global contact_matrix
 
     gamma = gamma * (1 / step_p_day)
     sigma = sigma * (1 / step_p_day)
@@ -753,6 +791,17 @@ def initialize_constant(seed):
     qs_t = [-1 for index in range(0, n_days * step_p_day)]
     qei_t = [-1 for index in range(0, n_days * step_p_day)]
 
+    people_tot = [elm for elm in range(0, n)]
+    seir_list = [0 for elm in range(0, n)]
+    res_time_list = [0 for elm in range(0, n)]
+    app_people = [False for elm in range(0, n)]
+    if is_sparse:
+        contact_list = [[] for elem in range(0, n)]
+    else:
+        contact_matrix = [[[-1, -1] for elem in range(0, index)] for index in range(0, n)]  # Matrice triangolare
+
+
+
 
 def initialize_tracing():
     global people_tot
@@ -762,15 +811,20 @@ def initialize_tracing():
     global contact_list
     global contact_matrix
 
-    people_tot = [elm for elm in range(0, n)]
-    seir_list = [0 for elm in range(0, n)]
-    res_time_list = [0 for elm in range(0, n)]
-    app_people = [False for elem in range(0, n)]
 
+    for index in range(0,len(app_people)):
+        app_people[index] = False
+    for index in range(0,len(seir_list)):
+        seir_list[index] = 0
+    for index in range(0,len(res_time_list)):
+        res_time_list[index] = 0
     if is_sparse:
         contact_list = [[] for elem in range(0, n)]
     else:
-        contact_matrix = [[[-1, -1] for elem in range(0, index)] for index in range(0, n)]  # Matrice triangolare
+        for row in contact_matrix:
+            for elem in row:
+                elem[0] = -1
+                elem[1] = -1
 
     rg1.shuffle(people_tot)
     for pr in people_tot[:n_app_users]:
@@ -954,11 +1008,13 @@ def proc_run_sim(lock, p_seed):
 
     p_name = p_seed
     print("Start Process " + str(p_name))
-    initialize_constant(p_name)
+    first_allocation(p_name)
     print("Costants have been initialized")
 
     for curr_sim in range(0, n_s):
+
         # flush_structures()
+        gc.collect()
         # CREATE GRAPH
         initialize_tracing()
         print("lists have been  initialized, Process " + str(p_name))
@@ -970,7 +1026,6 @@ def proc_run_sim(lock, p_seed):
         print("Process " + str(p_name) + " has fineshed to create office-school graphs")
         transp_graph = create_transport_network()
         print("Process " + str(p_name) + " has fineshed to create transport graph")
-        gc.collect()
         print("Process " + str(p_name) + "SIMULATION " + str(curr_sim))
 
         if tracing:
@@ -978,6 +1033,10 @@ def proc_run_sim(lock, p_seed):
             lock.acquire()
             fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
             lock.release()
+            print("Process "+str(p_name)+" has fineshed SIMULATION "+str(curr_sim))
+            print(a_s_queue)
+            print(len(a_s_queue))
+            flush_structures()
             # plot_seir_tracing(p_name, offset=start_contagion)
             # print_tracing_count()
 
@@ -986,6 +1045,7 @@ def proc_run_sim(lock, p_seed):
             lock.acquire()
             fm.write_csv_seir(s_t, e_t, i_t, r_t)
             lock.release()
+            flush_structures()
             # print_SEIR_count()
 
 
@@ -1195,6 +1255,7 @@ def set_contagion(inf):
     r1 = rg1.uniform(0.0, 1.0)
     if r1 < pr_symt: #* (1 - pr_false_neg):
         # E --> Is
+        a_s_queue.append(inf)
         seir_list[inf] = 4
         res_time_list[inf] = n_days_isol * step_p_day
         # GESTIONE NOTIFICHE
@@ -1374,23 +1435,40 @@ def seir_tracing_queue(graph, start_t, end_t, day):
                             r = rg1.uniform(0.0, 1.0)
                             # S --> E
                             if r < beta:
-                                res_time_list[ngb] = rg1.expovariate(sigma)
                                 seir_list[ngb] = 1
-            elif seir_list[index] == 1 or seir_list[index] == 6:
-                # (E --> I or Is) or Q_EI --> Is (+ gestione notifiche)
+                                res_time_list[ngb] = rg1.expovariate(sigma)
+            elif seir_list[index] == 1:
+                # E --> I or Is + gestione notifiche
                 set_contagion(index)
+            elif seir_list[index] == 6:
+                # Q_EI --> Is
+                # r = rg1.uniform(0.0, 1.0)
+                # if r < (1 - pr_false_neg):
+                a_s_queue.append(index)
+                seir_list[index] = 4
+                res_time_list[index] = n_days_isol * step_p_day
+                # GESTIONE NOTIFICHE
+                if app_people[index]:
+                    app_notify(index)
+                    station_notify(index)
+                # else:
+                #     # Q-EI --> I
+                #     seir_list[index] = 2
+                #     res_time_list[index] = rg1.expovariate(gamma)
             elif seir_list[index] == 2 or seir_list[index] == 4:
                 # I or Is --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 5:
                 # Q_S --> S
+                a_s_queue.append(index)
                 res_time_list[index] = 0
                 seir_list[index] = 0
 
             if update == 0:
                 update_contacts(graph, day)
             update += 1
+
 
 
 # def sim_SEIR_old(graph, start_t, end_t):
@@ -1730,16 +1808,18 @@ def get_tracing_result():
     global qs_t
     global qei_t
     print("Start avg calc ...")
-    if abs:
-        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
-    else:
-        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+
+
 
     fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
     print("End avg calc")
-    plot_seir_result("avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
-    plot_seir_tracing("avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
-
+    plot_seir_result("abs_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+    plot_seir_tracing("abs_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+    plot_seir_result("perc_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+    plot_seir_tracing("perc_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
 
 def get_seir_result():
     global s_t
@@ -1818,7 +1898,7 @@ def parse_input_file():
     global n_days_isol
     global n_days_quar
     global initial_seed
-    global n_proc
+    #global n_proc
 
     global pr_diagnosis
     global pr_notification
@@ -1853,7 +1933,7 @@ def parse_input_file():
         max_transp_size = data["max_transp_size"]
         n_app_users = int(data["fr_app_users"] * n)
         initial_seed = data["seed"]
-        pr_diagnosis = data["pr_diagnosis"]
+        #pr_diagnosis = data["pr_diagnosis"]
         pr_notification = data["pr_notification"]
         window_size = data["window_size"]
         is_sparse = data["is_sparse"] == True
@@ -1863,7 +1943,7 @@ def parse_input_file():
         office_density = data["office_density"]
         transport_density = data["transport_density"]
         max_far_ngb = data["max_far_ngb"]
-        n_proc = data["n_proc"]
+        #n_proc = data["n_proc"]
         if data["Transport"] != 0:
             graph_ext.append("Transport")
         if data["Office"] != 0:
@@ -1956,7 +2036,7 @@ if __name__ == '__main__':
         elif sys.argv[1] == "result":
             parse_input_file()
             get_tracing_result()
-        elif sys.argv[1] == "seir":
+        elif sys.argv[1] == "test_seir":
             n_s = int(sys.argv[2])
             if len(sys.argv) > 3:
                 abs = bool(sys.argv[3])
@@ -1967,7 +2047,7 @@ if __name__ == '__main__':
             run_sim(False)
             flush_structures()
             get_seir_result()
-        elif sys.argv[1] == "tracing":
+        elif sys.argv[1] == "test_tracing":
             n_s = int(sys.argv[2])
             if len(sys.argv) > 3:
                 abs = bool(sys.argv[3])
@@ -1983,19 +2063,14 @@ if __name__ == '__main__':
             print("done")
             # parse_input_file()
             # simulate_tracing()
-        elif sys.argv[1] == "mp":
-            if len(sys.argv) < 3 or (sys.argv[2] != "tracing" and sys.argv[2] != "seir"):
-                sys.exit("Second Parameter must be \"tracing\" or \"seir\"")
-            tracing = sys.argv[2] == "tracing"
+        elif sys.argv[1] == "tracing" or "seir":
+            tracing = sys.argv[1] == "tracing"
+            if len(sys.argv) < 3 :
+                sys.exit("Insert number of cores you want to use")
+            n_proc = int(sys.argv[2])
             if len(sys.argv) < 4:
-                sys.exit("Insert number of simulation!")
+                sys.exit("Insert number of simulation for each core")
             n_s = int(sys.argv[3])
-            if len(sys.argv) < 5:
-                sys.exit("Insert True if you want plot y as a probability!")
-            abs = True == sys.argv[4]
-            if n_proc > len(initial_seeds):
-                sys.exit("n_proc must be leq then " + str(len(initial_seeds)) + "!")
-
             var = 2
             fm.clear_csv()
             fm.clear_avg_csv()
@@ -2008,14 +2083,15 @@ if __name__ == '__main__':
                 proc_list[index].start()
             for proc in proc_list:
                 proc.join()
-                print("Process " + str(proc.name) + " has finished")
+                #print("Process " + str(proc.name) + " has finished")
             print("Results processing...")
-            flush_structures()
+           # flush_structures()
             if tracing:
                 get_tracing_result()
             else:
                 get_seir_result()
             print("You can download the results")
+
         elif sys.argv[1] == "write_res":
             # fm.clear_csv()
             # fm.clear_avg_csv()
@@ -2068,7 +2144,7 @@ if __name__ == '__main__':
             print(g)
             fm.write_csv_tracing(a, b, c, d, e, f, g, True)
 
-        elif sys.argv[1] == "seir":
+        elif sys.argv[1] == "test_seir":
             parse_input_file()
             simulate()
         elif sys.argv[1] == "compare":
