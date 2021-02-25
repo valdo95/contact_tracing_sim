@@ -55,6 +55,7 @@ pr_notification = 0  # Prob of receive a Notification
 pr_false_neg = 0  # Prob falsi negativi
 pr_symt = 0  # Prob di avere sintomi
 max_far_ngb = 20  # Max far contact
+comp_random = False  # True if contact in Station BLE are choose complitely random
 
 window_size = 0  # Size of the contact window
 
@@ -83,7 +84,8 @@ r_t = []  # number of recovered/isolated/dead for each step
 is_t = []  # number of isolated nodes
 qs_t = []  # number of quarantined s for each step
 qei_t = []  # number of quarantined ei notify by app for each step
-
+wis_t = []  # waiting for isolation
+ws_t = []  # waiting susceptible
 
 people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
@@ -94,23 +96,36 @@ contact_matrix = []  # [ngb, timestamp1, timestamp2] contact list
 # commuter_partitions = []  # list of list of people that use one specific station
 public_transport_users = []  # list of list of people that use one specific public_transport/bus
 
-graph_ext = []  # "Transport", "School","Office","Families"
+# Graph with ble station "Transport", "School","Office","Families"
+st_transport = 0
+st_office = 0
+st_school = 0
+st_families = 0
 # GRAPH DENSITY
 school_density = 0
 office_density = 0
 transport_density = 0
 
 # PARTITION LISTS
-office_partion = []
+office_partition = []
 school_partition = []
 transp_partition = []
 fam_partition = []
+
+# SCHOOL PARAMETERS
+sc_size1 = 0
+sc_size2 = 0
+sc_size3 = 0
+n_school_size1 = 0
+n_school_size2 = 0
+n_school_size3 = 0
 
 a_s_queue = []
 p_name = 0  # process name
 tracing = False  # False --> SEIR, True --> SEIR +tracing
 is_sparse = False
 fr_far_contacts = False
+with_queue = False
 # Initial Seed for MultiProc Sim: they have been generated from random.org (I didn't use python rng to avoid overlapping)
 initial_seeds = [5628732, 6653, 369944, 980321, 930450, 6879238, 1260548, 4566454, 8015103, 2418865, 7687303, 2803321,
                  278620, 3564, 575677, 706267, 49141, 935732, 277247, 694306]
@@ -148,6 +163,7 @@ def create_partions():
 
 def create_families_network():
     global fam_partition
+    global people_tot
     rg1.shuffle(people_tot)
     print("Shuffle done")
     fam_partition = list(generate_partitions(people_tot, min_family_size, max_familiy_size))
@@ -165,6 +181,7 @@ def create_families_network():
 
 def create_transport_network():
     global transp_partition
+    global people_tot
     rg1.shuffle(people_tot)
     transp_partition = list(generate_partitions(people_tot, min_transp_size, max_transp_size))
     # print("families: " + str(families))
@@ -178,8 +195,57 @@ def create_transport_network():
 
 def create_school_work_network():
     global school_partition
-    global office_partion
+    global office_partition
+    global people_tot
+    global min_office_size
+    global max_office_size
+
+    print_size()
     rg1.shuffle(people_tot)
+    index = 0
+    curr_part = 0
+    while curr_part < n_school_size1:
+        school_partition.append(people_tot[index:index + sc_size1])
+        index += sc_size1
+        curr_part += 1
+    curr_part = 0
+    while curr_part < n_school_size2:
+        school_partition.append(people_tot[index:index + sc_size2])
+        index += sc_size2
+        curr_part += 1
+    curr_part = 0
+    while curr_part < n_school_size3:
+        school_partition.append(people_tot[index:index + sc_size3])
+        index += sc_size3
+        curr_part += 1
+
+    office_partition = list(generate_partitions(people_tot[index:], min_office_size, max_office_size))
+    # school_partition = list(
+    #   generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
+    print("office partitions: " + str(office_partition))
+    print("school partitions: " + str(school_partition))
+    temp_graphs = []
+    for office in office_partition:
+        temp_graphs.append(gm.create_office_graph(office, density=office_density, rg=rg1))
+    office_graph = gm.nx.union_all(temp_graphs)
+    office_graph.name = "Office"
+    temp_graphs = []
+    for school in school_partition:
+        temp_graphs.append(gm.create_school_graph(school, density=school_density, rg=rg1))
+    school_graph = gm.nx.union_all(temp_graphs)
+    school_graph.name = "School"
+    # gm.print_graph_with_labels_and_neighb(school_graph)
+    # gm.print_graph_with_labels_and_neighb(office_graph)
+    return office_graph, school_graph
+
+
+def create_school_work_network_old():
+    global school_partition
+    global office_partition
+    global people_tot
+
+    # rg1.shuffle(people_tot)
+    print_size()
     office_partition = list(generate_partitions(people_tot[:n_stud], min_office_size, max_office_size))
     school_partition = list(
         generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
@@ -467,8 +533,6 @@ def second_validation(graphic_name):
 
 
 def flush_structures():
-
-
     global school_graph
     global office_graph
     global transp_graph
@@ -476,10 +540,11 @@ def flush_structures():
     global office_school_graph
 
     global school_partition
-    global office_partion
+    global office_partition
     global transp_partition
     global fam_partition
 
+    global a_s_queue
 
     # global s_t
     # global e_t
@@ -488,7 +553,6 @@ def flush_structures():
     # global is_t
     # global qs_t
     # global qei_t
-
 
     office_graph.clear()
     school_graph.clear()
@@ -502,13 +566,13 @@ def flush_structures():
     fam_graph = None
     office_school_graph = None
     gc.collect()
-    office_partion.clear()
+    office_partition.clear()
     school_partition.clear()
     transp_partition.clear()
     fam_partition.clear()
     gc.collect()
-
-
+    a_s_queue.clear()
+    gc.collect()
 
     print("Old strctures have been cleared")
 
@@ -519,8 +583,6 @@ def flush_structures():
     # is_t = []
     # qs_t = []
     # qei_t = []
-
-
 
     # office_graph = None
     # school_graph = None
@@ -652,24 +714,30 @@ def update_matrix(graph, timestamp, node_id, check, rnd_partition):
     # ngbs = [temp[index] for index in range(0, int(len(temp) * pr_notification))]
     # temp.clear()
     ngbs = list(gm.nx.neighbors(graph, node_id))
-    if check:
-        val = [timestamp, timestamp]
-    else:
-        val = [timestamp, -1]
-    if fr_far_contacts < 0.2:
-        for ngb in ngbs:
-            # print(check)
-            # input()
-            if ngb < node_id:
-                contact_matrix[node_id][ngb] = val
-            else:
-                contact_matrix[ngb][node_id] = val
+    # if check and comp_random:
+    #     val = [timestamp, timestamp]
+    # else:
+    #     val = [timestamp, -1]
+    # INSERISCO NELLA MATRICE TRIANGOLARE I CONTATTI VERI
+    for ngb in ngbs:
+        # print(check)
+        # input()
+        if ngb < node_id:
+            contact_matrix[node_id][ngb][0] = timestamp
+            if check and (not comp_random):
+                contact_matrix[node_id][ngb][1] = timestamp
+        else:
+            contact_matrix[ngb][node_id][0] = timestamp
+            if check and (not comp_random):
+                contact_matrix[ngb][node_id][1] = timestamp
 
-    for f_ngb in rnd_partition:
-        if f_ngb < node_id:
-            contact_matrix[node_id][f_ngb][1] = timestamp
-        elif node_id > f_ngb:
-            contact_matrix[f_ngb][node_id][1] = timestamp
+    # INSERISCO NELLA MATRICE TRIANGOLARE CONTATTI RANDOM
+    if check:
+        for f_ngb in rnd_partition:
+            if f_ngb < node_id:
+                contact_matrix[node_id][f_ngb][1] = timestamp
+            elif node_id > f_ngb:
+                contact_matrix[f_ngb][node_id][1] = timestamp
 
 
 def bfs(graph, node, max_nodes):
@@ -678,11 +746,12 @@ def bfs(graph, node, max_nodes):
         res.append(ngb)
 
 
+
 def update_contacts(graph, timestamp, g_is_sorted=False):
-    check = False
-    for elem in graph_ext:
-        if elem == graph.name:
-            check = True
+    # check = False
+    # for elem in graph_ext:
+    #     if elem == graph.name:
+    #         check = True
 
     if is_sparse:
         for node_id in graph.nodes():
@@ -691,29 +760,39 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
             else:
                 nbs = sorted(list(gm.nx.neighbors(graph, node_id)))
             update_node_contacts(node_id, nbs, timestamp, check)
-    elif check:
+    else:
         list_nodes = []
+        fr_ble_coverage = 0
         if graph.name == "Transport":
+            fr_ble_coverage = st_transport
             list_nodes = transp_partition
             # print("Tra: "+str(list_nodes))
         elif graph.name == "School":
+            fr_ble_coverage = st_school
             list_nodes = school_partition
             # print("Sch: " + str(list_nodes))
         elif graph.name == "Office":
-            list_nodes = office_partion
+            fr_ble_coverage = st_office
+            list_nodes = office_partition
             # print("off: " + str(list_nodes))
         elif graph.name == "Families":
+            fr_ble_coverage = st_families
             list_nodes = fam_partition
             # print("fam: " + str(list_nodes))
         rnd_curr_partition = []
-        for partion in list_nodes:
-            rg1.shuffle(partion)
+        n_ble_st = int(fr_ble_coverage*len(list_nodes))
+        for partition in list_nodes:
+            check = False
+            if n_ble_st > 0:
+                check = True
+                n_ble_st -=1
+            rg1.shuffle(partition)
             if fr_far_contacts > 0:
-                l = int(len(partion) * fr_far_contacts)
+                l = int(len(partition) * fr_far_contacts)
                 if max_far_ngb < l:
                     l = max_far_ngb
-                rnd_curr_partition = partion[:l]
-            for node_id in partion:
+                rnd_curr_partition = partition[:l]
+            for node_id in partition:
                 update_matrix(graph, timestamp, node_id, check, rnd_curr_partition)
 
 
@@ -759,7 +838,6 @@ def first_allocation(seed):
     global eta
     global rg1
 
-
     global s_t
     global e_t
     global i_t
@@ -767,6 +845,8 @@ def first_allocation(seed):
     global is_t
     global qs_t
     global qei_t
+    global wis_t
+    global ws_t
 
     global people_tot
     global seir_list
@@ -790,17 +870,19 @@ def first_allocation(seed):
     is_t = [-1 for index in range(0, n_days * step_p_day)]
     qs_t = [-1 for index in range(0, n_days * step_p_day)]
     qei_t = [-1 for index in range(0, n_days * step_p_day)]
+    if with_queue:
+        wis_t = [0 for index in range(0, n_days * step_p_day)]
+        ws_t = [0 for index in range(0, n_days * step_p_day)]
 
     people_tot = [elm for elm in range(0, n)]
     seir_list = [0 for elm in range(0, n)]
     res_time_list = [0 for elm in range(0, n)]
     app_people = [False for elm in range(0, n)]
+
     if is_sparse:
         contact_list = [[] for elem in range(0, n)]
     else:
         contact_matrix = [[[-1, -1] for elem in range(0, index)] for index in range(0, n)]  # Matrice triangolare
-
-
 
 
 def initialize_tracing():
@@ -811,12 +893,11 @@ def initialize_tracing():
     global contact_list
     global contact_matrix
 
-
-    for index in range(0,len(app_people)):
+    for index in range(0, len(app_people)):
         app_people[index] = False
-    for index in range(0,len(seir_list)):
+    for index in range(0, len(seir_list)):
         seir_list[index] = 0
-    for index in range(0,len(res_time_list)):
+    for index in range(0, len(res_time_list)):
         res_time_list[index] = 0
     if is_sparse:
         contact_list = [[] for elem in range(0, n)]
@@ -941,21 +1022,33 @@ def sim_tracing():
         print("Day " + str(day) + " Process " + str(p_name))
         # HOME
         end_1 = day * step_p_day + n_step_home
-        seir_tracing(fam_graph, day * step_p_day, end_1, day=day)
+        if with_queue:
+            seir_tracing_queue(fam_graph, day * step_p_day, end_1, day=day)
+        else:
+            seir_tracing(fam_graph, day * step_p_day, end_1, day=day)
         # TRANSP
         end_2 = int(end_1 + (n_step_transp / 2))
         transp_graph.clear()
         transp_graph = create_transport_network()
         gc.collect()
-        seir_tracing(transp_graph, end_1, end_2, day=day)
+        if with_queue:
+            seir_tracing_queue(transp_graph, end_1, end_2, day=day)
+        else:
+            seir_tracing(transp_graph, end_1, end_2, day=day)
         # WORK
         end_3 = end_2 + n_step_work
-        seir_tracing(office_school_graph, end_2, end_3, day=day)
+        if with_queue:
+            seir_tracing_queue(office_school_graph, end_2, end_3, day=day)
+        else:
+            seir_tracing(office_school_graph, end_2, end_3, day=day)
         # TRANSP
         transp_graph.clear()
         transp_graph = create_transport_network()
         gc.collect()
-        seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)), day=day)
+        if with_queue:
+            seir_tracing_queue(transp_graph, end_3, int(end_3 + (n_step_transp / 2)), day=day)
+        else:
+            seir_tracing(transp_graph, end_3, int(end_3 + (n_step_transp / 2)), day=day)
         if day == start_contagion:
             set_fisrt_contagion()
         if day > 14:
@@ -1006,6 +1099,7 @@ def proc_run_sim(lock, p_seed):
     global fam_graph
     global p_name
 
+    print(max_office_size)
     p_name = p_seed
     print("Start Process " + str(p_name))
     first_allocation(p_name)
@@ -1031,11 +1125,14 @@ def proc_run_sim(lock, p_seed):
         if tracing:
             sim_tracing()
             lock.acquire()
-            fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
+            if with_queue:
+                fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t)
+            else:
+                fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t)
             lock.release()
-            print("Process "+str(p_name)+" has fineshed SIMULATION "+str(curr_sim))
-            print(a_s_queue)
-            print(len(a_s_queue))
+            print("Process " + str(p_name) + " has fineshed SIMULATION " + str(curr_sim))
+            # print(a_s_queue)
+            # print(len(a_s_queue))
             flush_structures()
             # plot_seir_tracing(p_name, offset=start_contagion)
             # print_tracing_count()
@@ -1129,6 +1226,15 @@ def run_sim(tracing):
 #     # fam_gr.clear()
 #     # for elem in graphs:
 #     #     gm.print_graph_with_labels_and_neighb(elem)
+
+
+def get_statistic_tracing_queue():
+    count = [0, 0, 0, 0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_qs,nqei
+    # print(seir_list)
+    for elem in seir_list:
+        count[elem] += 1
+    return count
+
 
 def get_statistic_seir_tracing():
     count = [0, 0, 0, 0, 0, 0, 0]  # n_s, n_e, n_i, n_r, n_isol, n_qs,nqei
@@ -1253,11 +1359,29 @@ def set_contagion(inf):
     global seir_list
     global res_time_list
     r1 = rg1.uniform(0.0, 1.0)
-    if r1 < pr_symt: #* (1 - pr_false_neg):
+    if r1 < pr_symt:  # * (1 - pr_false_neg):
         # E --> Is
-        a_s_queue.append(inf)
         seir_list[inf] = 4
         res_time_list[inf] = n_days_isol * step_p_day
+        # GESTIONE NOTIFICHE
+        if app_people[inf]:
+            app_notify(inf)
+            station_notify(inf)
+    else:
+        # E --> I
+        seir_list[inf] = 2
+        res_time_list[inf] = rg1.expovariate(gamma)
+
+
+def set_contagion_queue(inf):
+    global seir_list
+    global res_time_list
+    r1 = rg1.uniform(0.0, 1.0)
+    if r1 < pr_symt:  # * (1 - pr_false_neg):
+        # E --> WIs
+        a_s_queue.append(inf)
+        seir_list[inf] = 7
+        res_time_list[inf] = 0
         # GESTIONE NOTIFICHE
         if app_people[inf]:
             app_notify(inf)
@@ -1409,6 +1533,8 @@ def seir_tracing_queue(graph, start_t, end_t, day):
     global is_t
     global qs_t
     global qei_t
+    global wis_t
+    global ws_t
 
     global seir_list
     global res_time_list
@@ -1416,7 +1542,7 @@ def seir_tracing_queue(graph, start_t, end_t, day):
     update = 0
     # print("range: " + str(start_t)+" "+str(end_t))
     for step in range(start_t, end_t):
-        [n_s, n_e, n_i, n_r, n_is, n_qs, n_qei] = get_statistic_seir_tracing()
+        [n_s, n_e, n_i, n_r, n_is, n_qs, n_qei, n_wis, n_ws] = get_statistic_tracing_queue()
         s_t[step] = n_s
         e_t[step] = n_e
         i_t[step] = n_i
@@ -1424,6 +1550,8 @@ def seir_tracing_queue(graph, start_t, end_t, day):
         is_t[step] = n_is
         qs_t[step] = n_qs
         qei_t[step] = n_qei
+        wis_t[step] = n_wis  # len(a_s_queue)
+        ws_t[step] = n_ws  # len(a_s_queue)
 
         for index in range(0, len(res_time_list)):
             if res_time_list[index] > 0.5:
@@ -1439,36 +1567,46 @@ def seir_tracing_queue(graph, start_t, end_t, day):
                                 res_time_list[ngb] = rg1.expovariate(sigma)
             elif seir_list[index] == 1:
                 # E --> I or Is + gestione notifiche
-                set_contagion(index)
+                set_contagion_queue(index)
             elif seir_list[index] == 6:
-                # Q_EI --> Is
-                # r = rg1.uniform(0.0, 1.0)
-                # if r < (1 - pr_false_neg):
+                # Q_EI --> WIs
                 a_s_queue.append(index)
-                seir_list[index] = 4
-                res_time_list[index] = n_days_isol * step_p_day
-                # GESTIONE NOTIFICHE
-                if app_people[index]:
-                    app_notify(index)
-                    station_notify(index)
-                # else:
-                #     # Q-EI --> I
-                #     seir_list[index] = 2
-                #     res_time_list[index] = rg1.expovariate(gamma)
+                seir_list[index] = 7
+                res_time_list[index] = 0
+
+
             elif seir_list[index] == 2 or seir_list[index] == 4:
                 # I or Is --> R
                 res_time_list[index] = 0
                 seir_list[index] = 3
             elif seir_list[index] == 5:
-                # Q_S --> S
+                # Q_S --> WS
                 a_s_queue.append(index)
                 res_time_list[index] = 0
-                seir_list[index] = 0
+                seir_list[index] = 8
 
             if update == 0:
                 update_contacts(graph, day)
             update += 1
 
+            i = 0
+        while len(a_s_queue) > 0 and i < 1:
+            val = a_s_queue.pop(0)
+            if seir_list[val] == 7:
+                seir_list[val] = 4
+                res_time_list[val] = n_days_isol * step_p_day
+                # GESTIONE NOTIFICHE
+                if app_people[index]:
+                    app_notify(index)
+                    station_notify(index)
+            elif seir_list[val] == 8:
+                seir_list[val] = 0
+                res_time_list[val] = 0
+            else:
+                sys.exit("errore")
+            i += 1
+
+        # print("Perosne in coda presso a_s: " + str(len(a_s_queue)))
 
 
 # def sim_SEIR_old(graph, start_t, end_t):
@@ -1808,18 +1946,23 @@ def get_tracing_result():
     global qs_t
     global qei_t
     print("Start avg calc ...")
+    if with_queue:
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue()
+        fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=True)
+    else:
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+        fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
 
-    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
-
-
-
-    fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
     print("End avg calc")
     plot_seir_result("abs_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
     plot_seir_tracing("abs_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
-    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+    if with_queue:
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue(n)
+    else:
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
     plot_seir_result("perc_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
     plot_seir_tracing("perc_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+
 
 def get_seir_result():
     global s_t
@@ -1880,6 +2023,7 @@ def parse_input_file():
     global n_employs
     global n_app_users
     global fr_symptomatic
+    global with_queue
 
     global min_family_size
     global max_familiy_size
@@ -1898,13 +2042,14 @@ def parse_input_file():
     global n_days_isol
     global n_days_quar
     global initial_seed
-    #global n_proc
+    # global n_proc
 
     global pr_diagnosis
     global pr_notification
     global pr_symt
     global pr_false_neg
     global max_far_ngb
+    global comp_random
 
     global is_sparse
     global fr_far_contacts
@@ -1912,6 +2057,18 @@ def parse_input_file():
     global school_density
     global office_density
     global transport_density
+
+    global sc_size1
+    global sc_size2
+    global sc_size3
+    global n_school_size1
+    global n_school_size2
+    global n_school_size3
+
+    global st_transport
+    global st_office
+    global st_school
+    global st_families
 
     with open("config_files/graph_and_time_parameters.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
@@ -1933,7 +2090,7 @@ def parse_input_file():
         max_transp_size = data["max_transp_size"]
         n_app_users = int(data["fr_app_users"] * n)
         initial_seed = data["seed"]
-        #pr_diagnosis = data["pr_diagnosis"]
+        # pr_diagnosis = data["pr_diagnosis"]
         pr_notification = data["pr_notification"]
         window_size = data["window_size"]
         is_sparse = data["is_sparse"] == True
@@ -1943,15 +2100,19 @@ def parse_input_file():
         office_density = data["office_density"]
         transport_density = data["transport_density"]
         max_far_ngb = data["max_far_ngb"]
-        #n_proc = data["n_proc"]
-        if data["Transport"] != 0:
-            graph_ext.append("Transport")
-        if data["Office"] != 0:
-            graph_ext.append("Office")
-        if data["School"] != 0:
-            graph_ext.append("School")
-        if data["Families"] != 0:
-            graph_ext.append("Families")
+        with_queue = data["with_queue"]
+        comp_random = data["comp_random"]
+        sc_size1 = data["sc_size1"]
+        sc_size2 = data["sc_size2"]
+        sc_size3 = data["sc_size3"]
+        n_school_size1 = data["n_school_size1"]
+        n_school_size2 = data["n_school_size2"]
+        n_school_size3 = data["n_school_size3"]
+        # n_proc = data["n_proc"]
+        st_transport = data["st_transport"]
+        st_office = data["st_office"]
+        st_school = data["st_school"]
+        st_families = data["st_families"]
 
         step_p_day = n_step_home + n_step_work + n_step_transp
 
@@ -2016,6 +2177,15 @@ def wrong_param():
     print("EXAMPLE: python epidemic_sim.py \"tracing\" 10 True")
 
 
+def print_size():
+    print("school")
+    print(min_school_size)
+    print(max_school_size)
+    print("office")
+    print(min_office_size)
+    print(max_office_size)
+
+
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         if sys.argv[1] == "validation_1":
@@ -2063,9 +2233,9 @@ if __name__ == '__main__':
             print("done")
             # parse_input_file()
             # simulate_tracing()
-        elif sys.argv[1] == "tracing" or "seir":
+        elif sys.argv[1] == "tracing" or sys.argv[1] == "seir":
             tracing = sys.argv[1] == "tracing"
-            if len(sys.argv) < 3 :
+            if len(sys.argv) < 3:
                 sys.exit("Insert number of cores you want to use")
             n_proc = int(sys.argv[2])
             if len(sys.argv) < 4:
@@ -2083,9 +2253,9 @@ if __name__ == '__main__':
                 proc_list[index].start()
             for proc in proc_list:
                 proc.join()
-                #print("Process " + str(proc.name) + " has finished")
+                # print("Process " + str(proc.name) + " has finished")
             print("Results processing...")
-           # flush_structures()
+            # flush_structures()
             if tracing:
                 get_tracing_result()
             else:
@@ -2159,9 +2329,15 @@ if __name__ == '__main__':
             print(rg1.random())
         elif sys.argv[1] == "test":
 
-            parts = [[1, 8, 7], [2], [3, 4, 5, 6]]
-            graph = gm.create_family_graph(parts)
-            gm.print_graph_with_labels_and_neighb(graph)
+            # parts = [[1, 8, 7], [2], [3, 4, 5, 6]]
+            # graph = gm.create_family_graph(parts)
+            # gm.print_graph_with_labels_and_neighb(graph)
+            a_l = [1, 3, 4]
+            a_l.append(5)
+            a_l.pop(0)
+            a_l.append(9)
+            a = a_l.pop(0)
+            print(a)
         else:
             wrong_param()
 else:

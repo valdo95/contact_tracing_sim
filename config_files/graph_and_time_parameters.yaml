@@ -1,5 +1,5 @@
 n_nodes: 800
-n_days: 20
+n_days: 30
 fr_students: 0.5
 fr_employees: 0.5
 # step_p_day: 4
@@ -15,9 +15,9 @@ max_office_size: 20
 min_transp_size: 40
 max_transp_size: 200
 # TRACING PARAM
-fr_app_users: 0.6
-pr_notification: 0.0
-fr_far_contacts: 0.0
+fr_app_users: 0.3
+pr_notification: 0.5
+fr_far_contacts: 0.5
 # GRAPH DENSITY
 school_density: 0.2
 office_density: 0.05
@@ -28,8 +28,17 @@ window_size: 14
 is_sparse: False
 start_contagion: 2
 # STAZIONI CHECK
-Transport: 1
-Office: 0
-School: 0
-Families: 0
+st_transport: 0
+st_office: 0
+st_school: 0.5
+st_families: 0
 max_far_ngb: 20
+with_queue: False
+comp_random: True
+# SCHOOL
+sc_size1: 80
+sc_size2: 50
+sc_size3: 10
+n_school_size1: 5
+n_school_size2: 1 #10
+n_school_size3: 5
