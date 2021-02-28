@@ -49,6 +49,7 @@ n_employs = 0  # number of employees
 n_app_users = 0  # number of people with the app
 n_s = 0  # number of simulation
 abs = False  # if user want abs graph result
+n_tagged_i = 0  # number of tagged i for R0
 
 pr_diagnosis = 0  # Prob of been diagnosed
 pr_notification = 0  # Prob of receive a Notification
@@ -62,12 +63,16 @@ window_size = 0  # Size of the contact window
 # Partitons size
 min_family_size = 0
 max_familiy_size = 0
-min_school_size = 0
-max_school_size = 0
-min_office_size = 0
-max_office_size = 0
+# min_school_size = 0
+# max_school_size = 0
+# min_office_size = 0
+# max_office_size = 0
 min_transp_size = 0
 max_transp_size = 0
+school_size = 0
+school_sd = 0
+office_size = 0
+office_sd = 0
 
 # s_list = []  # list of susceptible nodes
 # e_list = []  # list of exposed nodes
@@ -91,6 +96,7 @@ people_tot = []  # array of nodes
 app_people = []  # One entry for each person: The values are True if the person use the app
 contact_list = []  # [ngb, timestamp1, timestamp2] contact list
 contact_matrix = []  # [ngb, timestamp1, timestamp2] contact list
+tagged_i = []  # list of tagged i
 # people_status = []  # One entry for each person: 0 -> S, value > 0 --> value represent the residue time in quarantine o isolation
 
 # commuter_partitions = []  # list of list of people that use one specific station
@@ -113,12 +119,7 @@ transp_partition = []
 fam_partition = []
 
 # SCHOOL PARAMETERS
-sc_size1 = 0
-sc_size2 = 0
-sc_size3 = 0
-n_school_size1 = 0
-n_school_size2 = 0
-n_school_size3 = 0
+
 
 a_s_queue = []
 p_name = 0  # process name
@@ -200,30 +201,34 @@ def create_school_work_network():
     global min_office_size
     global max_office_size
 
-    print_size()
     rg1.shuffle(people_tot)
-    index = 0
     curr_part = 0
-    while curr_part < n_school_size1:
-        school_partition.append(people_tot[index:index + sc_size1])
-        index += sc_size1
-        curr_part += 1
-    curr_part = 0
-    while curr_part < n_school_size2:
-        school_partition.append(people_tot[index:index + sc_size2])
-        index += sc_size2
-        curr_part += 1
-    curr_part = 0
-    while curr_part < n_school_size3:
-        school_partition.append(people_tot[index:index + sc_size3])
-        index += sc_size3
-        curr_part += 1
+    curr_size = 0
+    while True:
+        curr_size = int(rg1.normalvariate(school_size, school_sd))
+        if curr_part + curr_size < n_stud:
+            school_partition.append(people_tot[curr_part:curr_part + curr_size])
+            curr_part += curr_size
+        else:
+            school_partition.append(people_tot[curr_part:n_stud])
+            curr_part = n_stud
+            break
+    while True:
+        curr_size = int(rg1.normalvariate(office_size, office_sd))
 
-    office_partition = list(generate_partitions(people_tot[index:], min_office_size, max_office_size))
+        if curr_part + curr_size < n:
+            office_partition.append(people_tot[curr_part:curr_part + curr_size])
+            curr_part += curr_size
+        else:
+            office_partition.append(people_tot[curr_part:n])
+            curr_part = n
+            break
+
+    # office_partition = list(generate_partitions(people_tot[index:], min_office_size, max_office_size))
     # school_partition = list(
     #   generate_partitions(people_tot[n_stud:(n_stud + n_employs)], min_school_size, max_school_size))
-    print("office partitions: " + str(office_partition))
-    print("school partitions: " + str(school_partition))
+    print("office partitions: " + str(len(office_partition)))
+    print("school partitions: " + str(len(school_partition)))
     temp_graphs = []
     for office in office_partition:
         temp_graphs.append(gm.create_office_graph(office, density=office_density, rg=rg1))
@@ -545,6 +550,7 @@ def flush_structures():
     global fam_partition
 
     global a_s_queue
+    global tagged_i
 
     # global s_t
     # global e_t
@@ -554,6 +560,7 @@ def flush_structures():
     # global qs_t
     # global qei_t
 
+    tagged_i.clear()
     office_graph.clear()
     school_graph.clear()
     transp_graph.clear()
@@ -746,7 +753,6 @@ def bfs(graph, node, max_nodes):
         res.append(ngb)
 
 
-
 def update_contacts(graph, timestamp, g_is_sorted=False):
     # check = False
     # for elem in graph_ext:
@@ -780,12 +786,12 @@ def update_contacts(graph, timestamp, g_is_sorted=False):
             list_nodes = fam_partition
             # print("fam: " + str(list_nodes))
         rnd_curr_partition = []
-        n_ble_st = int(fr_ble_coverage*len(list_nodes))
+        n_ble_st = int(fr_ble_coverage * len(list_nodes))
         for partition in list_nodes:
             check = False
             if n_ble_st > 0:
                 check = True
-                n_ble_st -=1
+                n_ble_st -= 1
             rg1.shuffle(partition)
             if fr_far_contacts > 0:
                 l = int(len(partition) * fr_far_contacts)
@@ -915,11 +921,16 @@ def initialize_tracing():
 def set_fisrt_contagion():
     global seir_list
     global res_time_list
+    global tagged_i
+
     rg1.shuffle(people_tot)
     initial_i = [el for el in people_tot[:n_inf]]
+    i = 0
     for inf in initial_i:
         seir_list[inf] = 2
         res_time_list[inf] = rg1.expovariate(gamma)
+        if i < n_tagged_i:
+            tagged_i.append([inf, 0])
 
 
 def initialize_sir():
@@ -1099,7 +1110,6 @@ def proc_run_sim(lock, p_seed):
     global fam_graph
     global p_name
 
-    print(max_office_size)
     p_name = p_seed
     print("Start Process " + str(p_name))
     first_allocation(p_name)
@@ -1125,6 +1135,7 @@ def proc_run_sim(lock, p_seed):
         if tracing:
             sim_tracing()
             lock.acquire()
+            fm.write_csv_r0(tagged_i)
             if with_queue:
                 fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t)
             else:
@@ -1458,6 +1469,14 @@ def seir(graph, start_t, end_t):
                 seir_list[index] = 3
 
 
+def check_tagged_i(node_id):
+    global tagged_i
+    for elem in tagged_i:
+        if elem[0] == node_id:
+            elem[1] += 1
+            break
+
+
 def seir_tracing(graph, start_t, end_t, day):
     global s_t
     global e_t
@@ -1494,6 +1513,7 @@ def seir_tracing(graph, start_t, end_t, day):
                             if r < beta:
                                 seir_list[ngb] = 1
                                 res_time_list[ngb] = rg1.expovariate(sigma)
+                                check_tagged_i(index)
             elif seir_list[index] == 1:
                 # E --> I or Is + gestione notifiche
                 set_contagion(index)
@@ -1791,7 +1811,8 @@ def plot_tracing_result(filename, offset=0):
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
     plt.title('Simulation Result - SEIR', fontsize=14)
-    plt.xlabel('Time (gg)', fontsize=14, )
+    hfont = {'fontname': 'Helvetica'}
+    plt.xlabel('Time', fontsize=12)
     plt.ylabel('', fontsize=14)
     plt.grid(True)
 
@@ -1822,8 +1843,8 @@ def plot_seir_tracing(filename, offset=0):
     plt.plot(time, is_t[offset:], color='purple')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result - SEIR', fontsize=14)
-    plt.xlabel('Time (gg)', fontsize=14, )
+    plt.title('Simulation Result', fontsize=14, fontfamily='serif')
+    plt.xlabel('Time', fontsize=12, fontfamily='serif')
     plt.ylabel('', fontsize=14)
     plt.grid(True)
 
@@ -1851,8 +1872,8 @@ def plot_seir_result(filename, offset=0):
     plt.plot(time, r_t[offset:], color='yellow')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result - SEIR', fontsize=14)
-    plt.xlabel('Time (gg)', fontsize=14, )
+    plt.title('Simulation Result', fontsize=14, fontfamily='serif')
+    plt.xlabel('Time', fontsize=12, fontfamily='serif')
     plt.ylabel('', fontsize=14)
     plt.grid(True)
 
@@ -1946,6 +1967,8 @@ def get_tracing_result():
     global qs_t
     global qei_t
     print("Start avg calc ...")
+    [mean, sd] = fm.calculate_r0_avarage()
+    fm.write_statistic_r0(mean, sd)
     if with_queue:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue()
         fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=True)
@@ -2027,12 +2050,16 @@ def parse_input_file():
 
     global min_family_size
     global max_familiy_size
-    global min_school_size
-    global max_school_size
-    global min_office_size
-    global max_office_size
+    # global min_school_size
+    # global max_school_size
+    # global min_office_size
+    # global max_office_size
     global min_transp_size
     global max_transp_size
+    global school_size
+    global school_sd
+    global office_size
+    global office_sd
 
     global step_p_day
     global n_step_home
@@ -2053,17 +2080,11 @@ def parse_input_file():
 
     global is_sparse
     global fr_far_contacts
+    global n_tagged_i
 
     global school_density
     global office_density
     global transport_density
-
-    global sc_size1
-    global sc_size2
-    global sc_size3
-    global n_school_size1
-    global n_school_size2
-    global n_school_size3
 
     global st_transport
     global st_office
@@ -2082,10 +2103,14 @@ def parse_input_file():
         n_employs = int(data["fr_employees"] * n)
         min_family_size = data["min_family_size"]
         max_familiy_size = data["max_familiy_size"]
-        min_school_size = data["min_school_size"]
-        max_school_size = data["max_school_size"]
-        min_office_size = data["min_office_size"]
-        max_office_size = data["max_office_size"]
+        # min_school_size = data["min_school_size"]
+        # max_school_size = data["max_school_size"]
+        # min_office_size = data["min_office_size"]
+        # max_office_size = data["max_office_size"]
+        school_size = data["school_size"]
+        school_sd = data["school_sd"]
+        office_size = data["office_size"]
+        office_sd = data["office_sd"]
         min_transp_size = data["min_transp_size"]
         max_transp_size = data["max_transp_size"]
         n_app_users = int(data["fr_app_users"] * n)
@@ -2102,12 +2127,6 @@ def parse_input_file():
         max_far_ngb = data["max_far_ngb"]
         with_queue = data["with_queue"]
         comp_random = data["comp_random"]
-        sc_size1 = data["sc_size1"]
-        sc_size2 = data["sc_size2"]
-        sc_size3 = data["sc_size3"]
-        n_school_size1 = data["n_school_size1"]
-        n_school_size2 = data["n_school_size2"]
-        n_school_size3 = data["n_school_size3"]
         # n_proc = data["n_proc"]
         st_transport = data["st_transport"]
         st_office = data["st_office"]
@@ -2126,7 +2145,6 @@ def parse_input_file():
         print("Number of Employee: ....... " + str(n_employs))
         print()
         print("Family size: .............. " + str(min_family_size) + " - " + str(max_familiy_size))
-        print("School size: .............. " + str(min_school_size) + " - " + str(max_school_size))
         print("Prob Diagnosi.............. " + str(pr_diagnosis))
         print("Prob Ricezione Notifica.... " + str(pr_notification))
 
@@ -2136,12 +2154,13 @@ def parse_input_file():
         sigma = data["sigma"]  # transition rate from E to I
         gamma = data["gamma"]  # transition rate from I to R
         n_inf = int(data["fr_inf"] * n)  # number of initial infected
-        fr_symptomatic = data["fr_symptomatic"]
+        # fr_symptomatic = data["fr_symptomatic"]
         n_days_isol = data["n_days_isol"]
         n_days_quar = data["n_days_quar"]
         eta = data["eta"]
         pr_symt = data["pr_symt"]
         pr_false_neg = data["pr_false_neg"]
+        n_tagged_i = data["n_tagged_i"]
 
         print("\nEpidemic Parameters: \n")
         print("Beta: ..................... " + str(beta))
@@ -2328,16 +2347,18 @@ if __name__ == '__main__':
             rg1 = random.Random(1)
             print(rg1.random())
         elif sys.argv[1] == "test":
-
+            [mean, sd] = fm.calculate_r0_avarage()
+            print(mean)
+            print(sd)
             # parts = [[1, 8, 7], [2], [3, 4, 5, 6]]
             # graph = gm.create_family_graph(parts)
             # gm.print_graph_with_labels_and_neighb(graph)
-            a_l = [1, 3, 4]
-            a_l.append(5)
-            a_l.pop(0)
-            a_l.append(9)
-            a = a_l.pop(0)
-            print(a)
+            # a_l = [1, 3, 4]
+            # a_l.append(5)
+            # a_l.pop(0)
+            # a_l.append(9)
+            # a = a_l.pop(0)
+            # print(a)
         else:
             wrong_param()
 else:

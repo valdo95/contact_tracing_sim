@@ -1,5 +1,18 @@
 import csv
 import yaml
+import math
+
+
+def get_r0_path_file():
+    with open("config_files/path_files.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        return data["r_0_path"]
+
+
+def get_r0_stat_path_file():
+    with open("config_files/path_files.yaml", 'r') as stream:
+        data = yaml.safe_load(stream)
+        return data["r_0_stat_path"]
 
 
 def get_path_files_seir():
@@ -39,7 +52,8 @@ def get_path_avg_files_tracing_queue():
     with open("config_files/path_files.yaml", 'r') as stream:
         data = yaml.safe_load(stream)
         return data["avg_st_path"], data["avg_et_path"], data["avg_it_path"], data["avg_rt_path"], data["avg_ist_path"], \
-               data["avg_qst_path"], data["avg_qeit_path"], data["avg_wist_path"], data["avg_wst_path"]
+               data["avg_qst_path"], data["avg_qeit_path"], data["avg_wist_path"], data["avg_wst_path"], data[
+                   "r_0_path"], data["r_0_stat_path"]
 
 
 def calculate_average(file, size=-1, n_node=1):
@@ -78,6 +92,31 @@ def calculate_average_from_csv_tracing(n_node=1):
     return res
 
 
+def variance(data, mean, ddof=0):
+    n = len(data)
+    return sum((x - mean) ** 2 for x in data) / (n - ddof)
+
+
+def stdev(data, mean, ddof=0):
+    return math.sqrt(variance(data, mean, ddof))
+
+
+def calculate_r0_avarage():
+    file_path = get_r0_path_file()
+    list_r0 = []
+    avg_r0 = 0
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            for elem in row:
+                avg_r0 += int(elem)
+                list_r0.append(int(elem))
+
+    mean = avg_r0 / len(list_r0)
+    sd = stdev(list_r0, mean, ddof=1)
+    return mean, sd
+
+
 def calculate_average_from_csv_tracing_queue(n_node=1):
     size = -1
     res = []
@@ -92,14 +131,14 @@ def clear_csv():
     for file in get_path_files_tracing_queue():
         f = open(file, "w+")
         f.close()
-    print(str(file)+" have been cleared")
+    print(str(file) + " have been cleared")
 
 
 def clear_avg_csv():
     for file in get_path_avg_files_tracing_queue():
         f = open(file, "w+")
         f.close()
-    print(str(file)+" have been cleared")
+    print(str(file) + " have been cleared")
 
 
 def read_csv(tracing=False, avg=False):
@@ -173,8 +212,24 @@ def write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=False):
     print("Files have been written")
 
 
-def write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=False):
+def write_csv_r0(tagged_i):
+    r0_path = get_r0_path_file()
+    with open(r0_path, 'a') as r0_file:
+        row = []
+        for elem in tagged_i:
+            row.append(elem[1])
+        writer = csv.writer(r0_file)
+        writer.writerow(row)
 
+
+def write_statistic_r0(mean, sd):
+    file_path = get_r0_stat_path_file()
+    with open(file_path, 'a') as stat_file:
+        writer = csv.writer(stat_file)
+        writer.writerow([mean, sd])
+
+
+def write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=False):
     if avg:
         [st_path, et_path, it_path, rt_path, ist_path, qst_path, qeit_path,
          wist_path, wst_path] = get_path_avg_files_tracing_queue()
