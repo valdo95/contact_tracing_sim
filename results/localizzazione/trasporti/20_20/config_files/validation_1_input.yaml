@@ -1,0 +1,10 @@
+# If sigma >> 1 and gamma -> 0 then the time spent in E is very small and the time spent in I is infinite.
+# If the number of step is large the SEIR model become a SI model.
+n_nodes: 500
+n_days: 500
+beta: 0.001
+sigma: 100
+gamma: 0.0001
+fr_inf: 0.02
+step_p_day: 1
+seed: 1

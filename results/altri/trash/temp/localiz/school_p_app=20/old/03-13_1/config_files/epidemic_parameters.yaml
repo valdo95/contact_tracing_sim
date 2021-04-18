@@ -1,0 +1,10 @@
+beta: 0.2
+sigma: 0.2
+gamma: 0.06
+fr_inf: 0.001
+n_days_isol: 5
+n_days_quar: 10
+eta: 0.1
+pr_false_neg: 0.1
+pr_symt: 0.45
+n_tagged_i: 0

@@ -122,14 +122,29 @@ fam_partition = []
 
 
 a_s_queue = []
+a_s_wt_queue = []
 p_name = 0  # process name
 tracing = False  # False --> SEIR, True --> SEIR +tracing
 is_sparse = False
 fr_far_contacts = False
-with_queue = False
+with_queue = True
+
+set_state = True
+n_s_st = 0
+n_e_st = 0
+n_i_st = 0
+n_r_st = 0
+n_qs_st = 0
+n_qei_st = 0
+n_is_st = 0
+
 # Initial Seed for MultiProc Sim: they have been generated from random.org (I didn't use python rng to avoid overlapping)
 initial_seeds = [5628732, 6653, 369944, 980321, 930450, 6879238, 1260548, 4566454, 8015103, 2418865, 7687303, 2803321,
                  278620, 3564, 575677, 706267, 49141, 935732, 277247, 694306]
+
+res_time_is = None
+res_time_qei = None
+n_dep = 0
 
 
 def set_random_stream(proc_seed=0):
@@ -550,6 +565,7 @@ def flush_structures():
     global fam_partition
 
     global a_s_queue
+    global a_s_wt_queue
     global tagged_i
 
     # global s_t
@@ -579,6 +595,7 @@ def flush_structures():
     fam_partition.clear()
     gc.collect()
     a_s_queue.clear()
+    a_s_wt_queue.clear()
     gc.collect()
 
     print("Old strctures have been cleared")
@@ -923,14 +940,19 @@ def set_fisrt_contagion():
     global res_time_list
     global tagged_i
 
-    rg1.shuffle(people_tot)
-    initial_i = [el for el in people_tot[:n_inf]]
-    i = 0
-    for inf in initial_i:
-        seir_list[inf] = 2
-        res_time_list[inf] = rg1.expovariate(gamma)
-        if i < n_tagged_i:
-            tagged_i.append([inf, 0])
+    if set_state:
+        set_initial_state()
+        print(get_statistic_seir_tracing())
+    else:
+        rg1.shuffle(people_tot)
+        initial_i = [el for el in people_tot[:n_inf]]
+        i = 0
+        for inf in initial_i:
+            seir_list[inf] = 2
+            res_time_list[inf] = rg1.expovariate(gamma)
+            if i < n_tagged_i:
+                tagged_i.append([inf, 0])
+                i += 1
 
 
 def initialize_sir():
@@ -1013,6 +1035,8 @@ def sim_seir():
         # WORK
         end_3 = end_2 + n_step_work
         seir(office_school_graph, end_2, end_3)
+
+        update_contacts(school_graph)
         # TRANSP
         transp_graph.clear()
         transp_graph = create_transport_network()
@@ -1033,6 +1057,7 @@ def sim_tracing():
         print("Day " + str(day) + " Process " + str(p_name))
         # HOME
         end_1 = day * step_p_day + n_step_home
+        print(with_queue)
         if with_queue:
             seir_tracing_queue(fam_graph, day * step_p_day, end_1, day=day)
         else:
@@ -1052,6 +1077,8 @@ def sim_tracing():
             seir_tracing_queue(office_school_graph, end_2, end_3, day=day)
         else:
             seir_tracing(office_school_graph, end_2, end_3, day=day)
+        update_contacts(office_graph, day)
+        update_contacts(school_graph, day)
         # TRANSP
         transp_graph.clear()
         transp_graph = create_transport_network()
@@ -1093,6 +1120,8 @@ def sim_tracing_old():
 
         transp_graph = create_transport_network()
         update_contacts(office_graph, day, True)
+        print("OFFICE")
+        print(office_graph.name)
         update_contacts(school_graph, day, True)
         update_contacts(fam_graph, day)
         gc.collect()
@@ -1112,6 +1141,11 @@ def proc_run_sim(lock, p_seed):
 
     p_name = p_seed
     print("Start Process " + str(p_name))
+    # if set_state:
+    #     print(len(res_time_qei))
+    #     print(res_time_qei)
+    #     print(len(res_time_is))
+    #     print(res_time_is)
     first_allocation(p_name)
     print("Costants have been initialized")
 
@@ -1126,13 +1160,17 @@ def proc_run_sim(lock, p_seed):
         fam_graph = create_families_network()
         print("Process " + str(p_name) + " has fineshed to create families graph")
         [office_graph, school_graph] = create_school_work_network()
+
         office_school_graph = gm.nx.union(office_graph, school_graph)
+        print(school_graph.name)
+        print(office_graph.name)
         print("Process " + str(p_name) + " has fineshed to create office-school graphs")
         transp_graph = create_transport_network()
         print("Process " + str(p_name) + " has fineshed to create transport graph")
         print("Process " + str(p_name) + "SIMULATION " + str(curr_sim))
 
         if tracing:
+
             sim_tracing()
             lock.acquire()
             fm.write_csv_r0(tagged_i)
@@ -1391,6 +1429,7 @@ def set_contagion_queue(inf):
     if r1 < pr_symt:  # * (1 - pr_false_neg):
         # E --> WIs
         a_s_queue.append(inf)
+        a_s_wt_queue.append()
         seir_list[inf] = 7
         res_time_list[inf] = 0
         # GESTIONE NOTIFICHE
@@ -1540,7 +1579,7 @@ def seir_tracing(graph, start_t, end_t, day):
                 res_time_list[index] = 0
                 seir_list[index] = 0
 
-            if update == 0:
+            if update == 0 and (graph.name == "Transport" or graph.name == "Family"):
                 update_contacts(graph, day)
             update += 1
 
@@ -1558,6 +1597,8 @@ def seir_tracing_queue(graph, start_t, end_t, day):
 
     global seir_list
     global res_time_list
+
+    global n_dep
 
     update = 0
     # print("range: " + str(start_t)+" "+str(end_t))
@@ -1609,8 +1650,8 @@ def seir_tracing_queue(graph, start_t, end_t, day):
                 update_contacts(graph, day)
             update += 1
 
-            i = 0
-        while len(a_s_queue) > 0 and i < 1:
+        i = 0
+        while len(a_s_queue) > 0 and i < 48:
             val = a_s_queue.pop(0)
             if seir_list[val] == 7:
                 seir_list[val] = 4
@@ -1625,6 +1666,7 @@ def seir_tracing_queue(graph, start_t, end_t, day):
             else:
                 sys.exit("errore")
             i += 1
+            n_dep += 1
 
         # print("Perosne in coda presso a_s: " + str(len(a_s_queue)))
 
@@ -1780,7 +1822,7 @@ def plot_SIR_result(filename):
     plt.plot(time, r_t, color='yellow')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result', fontsize=14)
+    plt.title('Simulation Results', fontsize=14)
     plt.xlabel('Time', fontsize=14)
     plt.ylabel('', fontsize=14)
     plt.grid(True)
@@ -1810,7 +1852,7 @@ def plot_tracing_result(filename, offset=0):
     plt.plot(time, qei_t, color='purple')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result - SEIR', fontsize=14)
+    plt.title('Simulation Results - SEIR', fontsize=14)
     hfont = {'fontname': 'Helvetica'}
     plt.xlabel('Time', fontsize=12)
     plt.ylabel('', fontsize=14)
@@ -1843,7 +1885,7 @@ def plot_seir_tracing(filename, offset=0):
     plt.plot(time, is_t[offset:], color='purple')
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result', fontsize=14, fontfamily='serif')
+    plt.title('Simulation Results', fontsize=14, fontfamily='serif')
     plt.xlabel('Time', fontsize=12, fontfamily='serif')
     plt.ylabel('', fontsize=14)
     plt.grid(True)
@@ -1853,6 +1895,164 @@ def plot_seir_tracing(filename, offset=0):
     orange_patch = mpatches.Patch(color='violet', label='Q-IE')
     red_patch = mpatches.Patch(color='red', label='Infected')
     yellow_patch = mpatches.Patch(color='purple', label='Isolated')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
+def plot_seir_tracing_q(filename, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, ws_t[offset:], color='orange')
+    plt.plot(time, wis_t[offset:], color='blue')
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Nodi", fontsize=12, fontfamily='serif')
+    plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.xlabel('Tempo(gg)', fontsize=12, fontfamily='serif')
+    plt.grid(True)
+    # legend
+    c = mpatches.Patch(color='red', label='Infected')
+    e = mpatches.Patch(color='orange', label='W-S')
+    f = mpatches.Patch(color='blue', label='W-IE')
+    plt.legend(handles=[c, e, f])
+
+    plt.savefig("img/" + str(filename) + "_queue.png")
+    plt.close()
+
+
+def plot_tracing_q1_q3(filename, q1_i, q3_i, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, qs_t[offset:], color='green')
+    plt.plot(time, qei_t[offset:], color='violet')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, is_t[offset:], color='purple')
+    plt.fill_between(time, q1_i[offset:], q3_i[offset:], color="red", alpha=0.3)
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Frazione Nodi", fontsize=12, fontfamily='serif')
+    # plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.xlabel('Tempo(giorni)', fontsize=12, fontfamily='serif')
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='green', label='Q-S')
+    orange_patch = mpatches.Patch(color='violet', label='Q-IE')
+    red_patch = mpatches.Patch(color='red', label='Infected')
+    yellow_patch = mpatches.Patch(color='purple', label='Isolated')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
+def plot_seir_q1_q3(filename, q1, q3, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, s_t[offset:], color='blue')
+    plt.plot(time, e_t[offset:], color='orange')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, r_t[offset:], color='yellow')
+    plt.fill_between(time, q1_i[offset:], q3_i[offset:], color="red", alpha=0.3)
+
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Nodi", fontsize=12, fontfamily='serif')
+    plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.xlabel('Tempo(gg)', fontsize=12, fontfamily='serif')
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='blue', label='S')
+    orange_patch = mpatches.Patch(color='orange', label='E')
+    red_patch = mpatches.Patch(color='red', label='I')
+    yellow_patch = mpatches.Patch(color='yellow', label='R')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
+def plot_is_q1_q3(filename, q1, q3, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, s_t[offset:], color='blue')
+    plt.plot(time, e_t[offset:], color='orange')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, r_t[offset:], color='yellow')
+    plt.plot(time, is_t[offset:], color='purple')
+    plt.fill_between(time, q1_i[offset:], q3_i[offset:], color="red", alpha=0.3)
+
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Nodi", fontsize=12, fontfamily='serif')
+    plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.xlabel('Tempo(gg)', fontsize=12, fontfamily='serif')
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='blue', label='S')
+    orange_patch = mpatches.Patch(color='orange', label='E')
+    red_patch = mpatches.Patch(color='red', label='I')
+    yellow_patch = mpatches.Patch(color='yellow', label='R')
+    black_patch = mpatches.Patch(color='purple', label='Is')
+    plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch, black_patch])
+
+    plt.savefig("img/" + str(filename) + "_SEIR.png")
+    plt.close()
+
+
+def plot_isolation_result(filename, offset=0):
+    time = []
+    offset = offset * step_p_day
+    for i in range(0, len(s_t)):
+        time.append(i / step_p_day)
+    time = time[offset:]
+    # list_time_new = np.linspace(min(time), max(time), 1000)
+    plt.plot(time, s_t[offset:], color='blue')
+    plt.plot(time, e_t[offset:], color='orange')
+    plt.plot(time, i_t[offset:], color='red')
+    plt.plot(time, r_t[offset:], color='yellow')
+    plt.plot(time, is_t[offset:], color='violet')
+
+    # x_int = range(min(time), math.ceil(max(time)) + 1)
+    # plt.xticks(x_int) # per avere interi nelle ascisse
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Nodes", fontsize=12, fontfamily='serif')
+    plt.xlabel('Time(gg)', fontsize=12, fontfamily='serif')
+    # plt.ylabel('', fontsize=14)
+    plt.grid(True)
+
+    # legend
+    blue_patch = mpatches.Patch(color='blue', label='S')
+    orange_patch = mpatches.Patch(color='orange', label='E')
+    red_patch = mpatches.Patch(color='red', label='I')
+    yellow_patch = mpatches.Patch(color='yellow', label='R')
+    violet_patch = mpatches.Patch(color='violet', label='Is')
     plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
 
     plt.savefig("img/" + str(filename) + "_SEIR.png")
@@ -1870,18 +2070,21 @@ def plot_seir_result(filename, offset=0):
     plt.plot(time, e_t[offset:], color='orange')
     plt.plot(time, i_t[offset:], color='red')
     plt.plot(time, r_t[offset:], color='yellow')
+
     # x_int = range(min(time), math.ceil(max(time)) + 1)
     # plt.xticks(x_int) # per avere interi nelle ascisse
-    plt.title('Simulation Result', fontsize=14, fontfamily='serif')
-    plt.xlabel('Time', fontsize=12, fontfamily='serif')
-    plt.ylabel('', fontsize=14)
+    # plt.title('Simulation Results', fontsize=14, fontfamily='serif')
+    plt.ylabel("Nodi", fontsize=12, fontfamily='serif')
+    plt.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+    plt.xlabel('Tempo(gg)', fontsize=12, fontfamily='serif')
+    # plt.ylabel('', fontsize=14)
     plt.grid(True)
 
     # legend
-    blue_patch = mpatches.Patch(color='blue', label='Susceptible')
-    orange_patch = mpatches.Patch(color='orange', label='Exposed')
-    red_patch = mpatches.Patch(color='red', label='Infected')
-    yellow_patch = mpatches.Patch(color='yellow', label='Reduced')
+    blue_patch = mpatches.Patch(color='blue', label='S')
+    orange_patch = mpatches.Patch(color='orange', label='E')
+    red_patch = mpatches.Patch(color='red', label='I')
+    yellow_patch = mpatches.Patch(color='yellow', label='R')
     plt.legend(handles=[blue_patch, orange_patch, red_patch, yellow_patch])
 
     plt.savefig("img/" + str(filename) + "_SEIR.png")
@@ -1966,25 +2169,31 @@ def get_tracing_result():
     global is_t
     global qs_t
     global qei_t
+    global ws_t
+    global wis_t
     print("Start avg calc ...")
-    [mean, sd] = fm.calculate_r0_avarage()
-    fm.write_statistic_r0(mean, sd)
+    # [mean, sd] = fm.calculate_r0_avarage()
+    # fm.write_statistic_r0(mean, sd)
     if with_queue:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue()
         fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=True)
     else:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
         fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
+        # [q1_i, q3_i] = fm.calculate_quartile_I()
+        # print(q1_i)
+        # print(q3_i)
 
     print("End avg calc")
     plot_seir_result("abs_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
     plot_seir_tracing("abs_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
     if with_queue:
-        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue(n)
+        [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue()
+        plot_seir_tracing_q("tracing", offset=start_contagion)
     else:
         [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
-    plot_seir_result("perc_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
-    plot_seir_tracing("perc_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+        plot_seir_result("tracing", offset=start_contagion)
+    plot_seir_tracing("seir", offset=start_contagion)
 
 
 def get_seir_result():
@@ -2172,6 +2381,56 @@ def parse_input_file():
         print()
 
 
+def set_initial_state():
+    global seir_list
+    global res_time_list
+
+    print_first_state()
+    rg1.shuffle(people_tot)
+    temp = people_tot
+    i = 0
+    for elem in temp[:n_is_st]:
+        seir_list[elem] = 4
+        res_time_list[elem] = res_time_is[i]
+        i += 1
+    temp = temp[n_is_st:]
+    i = 0
+    for elem in temp[:n_qei_st]:
+        seir_list[elem] = 6
+        res_time_list[elem] = res_time_qei[i]
+        i += 1
+    temp = temp[n_qei_st:]
+    for elem in temp[:n_qs_st]:
+        seir_list[elem] = 5
+        res_time_list[elem] = rg1.expovariate(eta)
+    temp = temp[n_qs_st:]
+    for elem in temp[:n_r_st]:
+        seir_list[elem] = 3
+        res_time_list[elem] = 0
+    temp = temp[n_r_st:]
+    i = 0
+    for elem in temp[:n_i_st]:
+        seir_list[elem] = 2
+        res_time_list[elem] = rg1.expovariate(gamma)
+        if i < n_tagged_i:
+            tagged_i.append([elem, 0])
+            i += 1
+    temp = temp[n_i_st:]
+    for elem in temp[:n_e_st]:
+        seir_list[elem] = 1
+        res_time_list[elem] = rg1.expovariate(sigma)
+    temp = temp[n_e_st:]
+    for elem in temp[:n_s_st]:
+        seir_list[elem] = 0
+        res_time_list[elem] = 0
+    # print("STATO")
+    # print(res_time_qei)
+    # print(res_time_is)
+    # print(seir_list)
+    # print(res_time_list)
+    # print(res_time_list)
+
+
 def identify_process():
     global beta
     print("Start Process")
@@ -2203,6 +2462,11 @@ def print_size():
     print("office")
     print(min_office_size)
     print(max_office_size)
+
+
+def print_first_state():
+    print("S:" + str(n_s_st) + "\nE: " + str(n_e_st) + "\nI: " + str(n_i_st) + "\nR: " + str(n_r_st) + "\nIs: " + str(
+        n_is_st) + "\nQ-S: " + str(n_qs_st) + "\nQ-EI: " + str(n_qei_st))
 
 
 if __name__ == '__main__':
@@ -2252,6 +2516,25 @@ if __name__ == '__main__':
             print("done")
             # parse_input_file()
             # simulate_tracing()
+        elif sys.argv[1] == "quartile":
+            parse_input_file()
+            with_queue = False
+            if with_queue:
+                [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t] = fm.calculate_average_from_csv_tracing_queue(n)
+                # [q1_i, q3_i] = fm.calculate_quartile_I()
+                fm.write_csv_tracing_queue(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, wis_t, ws_t, avg=True)
+                plot_seir_tracing_q("queue", offset=5)
+            else:
+
+                [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+                fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, qs_t, qei_t, avg=True)
+                [q1_i, q3_i] = fm.calculate_quartile_I(n)
+                print(q1_i)
+                print(i_t)
+                print(q3_i)
+
+                plot_tracing_q1_q3("quartile_tracing", q1_i, q3_i, offset=start_contagion)
+                plot_seir_q1_q3("quartile_seir", q1_i, q3_i, offset=start_contagion)
         elif sys.argv[1] == "tracing" or sys.argv[1] == "seir":
             tracing = sys.argv[1] == "tracing"
             if len(sys.argv) < 3:
@@ -2261,9 +2544,24 @@ if __name__ == '__main__':
                 sys.exit("Insert number of simulation for each core")
             n_s = int(sys.argv[3])
             var = 2
+            if set_state:
+                t = fm.get_t(800)
+                print("T: " + str(t))
+
+                [n_s_st, n_e_st, n_i_st, n_r_st, n_is_st, n_qs_st, n_qei_st] = fm.get_first_state(t)
+                print_first_state()
+                parse_input_file()
+                res_time_is = fm.get_res_time_is(t, n_days_isol * step_p_day)
+                res_time_qei = fm.get_res_time_qei(t, n_days_quar * step_p_day)
+                print(len(res_time_is))
+                print(res_time_is)
+                print(len(res_time_qei))
+                print("fine")
+            else:
+                parse_input_file()
             fm.clear_csv()
             fm.clear_avg_csv()
-            parse_input_file()
+            # parse_input_file()
             proc_list = []  # lista processi
             lock = Lock()
             for index in range(0, n_proc):
@@ -2281,84 +2579,106 @@ if __name__ == '__main__':
                 get_seir_result()
             print("You can download the results")
 
-        elif sys.argv[1] == "write_res":
-            # fm.clear_csv()
-            # fm.clear_avg_csv()
-            # s_t = [3, 5, 8]
-            # e_t = [1, 1, 1]
-            # i_t = [9, 9, 9]
-            # r_t = [10, 1, 1]
-            # fm.write_csv_seir(s_t, e_t, i_t, r_t)
-            # s_t = [4, 5, 9]
-            # e_t = [1, 1, 1]
-            # i_t = [3, 5, 8]
-            # r_t = [10, 1, 1]
-            # fm.write_csv_seir(s_t, e_t, i_t, r_t)
-            # s_t = [5, 5, 8]
-            # e_t = [1, 5, 1]
-            # i_t = [9, 9, 9]
-            # r_t = [10, 1, 1]
-            # fm.write_csv_seir(s_t, e_t, i_t, r_t)
-            # [a, b, c, d] = fm.calculate_average_from_csv_seir()
-
-            fm.clear_csv()
-            s_t = [3, 5, 8]
-            e_t = [1, 1, 1]
-            i_t = [9, 9, 9]
-            r_t = [10, 1, 1]
-            is_t = [10, 1, 1]
-            q_t = [10, 1, 1]
-            fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
-            s_t = [4, 5, 9]
-            e_t = [1, 1, 1]
-            i_t = [3, 5, 8]
-            r_t = [10, 1, 1]
-            is_t = [10, 1, 1]
-            q_t = [10, 1, 1]
-            fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
-            s_t = [5, 5, 8]
-            e_t = [1, 5, 1]
-            i_t = [9, 9, 9]
-            r_t = [10, 1, 1]
-            is_t = [10, 2, 1]
-            q_t = [10, 10, 1]
-            fm.write_csv_tracing(s_t, e_t, i_t, r_t, is_t, q_t, q_t)
-            [a, b, c, d, e, f, g] = fm.calculate_average_from_csv_tracing()
-            print(a)
-            print(b)
-            print(c)
-            print(d)
-            print(e)
-            print(f)
-            print(g)
-            fm.write_csv_tracing(a, b, c, d, e, f, g, True)
-
         elif sys.argv[1] == "test_seir":
             parse_input_file()
             simulate()
         elif sys.argv[1] == "compare":
             compare_with_EON("comparison")
-        elif sys.argv[1] == "random":
-            rg1 = random.Random()
-            rg1.seed(2)
-            print(rg1.random())
-            rg1.seed(1)
-            print(rg1.random())
-            rg1 = random.Random(1)
-            print(rg1.random())
-        elif sys.argv[1] == "test":
-            [mean, sd] = fm.calculate_r0_avarage()
-            print(mean)
-            print(sd)
-            # parts = [[1, 8, 7], [2], [3, 4, 5, 6]]
-            # graph = gm.create_family_graph(parts)
-            # gm.print_graph_with_labels_and_neighb(graph)
-            # a_l = [1, 3, 4]
-            # a_l.append(5)
-            # a_l.pop(0)
-            # a_l.append(9)
-            # a = a_l.pop(0)
-            # print(a)
+        elif sys.argv[1] == "res-time":
+            list1 = fm.get_res_time_is(2)
+            list2 = fm.get_res_time_qei(2)
+            print(list1)
+            print(list2)
+        elif sys.argv[1] == "print":
+            step_p_day = 12
+            start_contagion = 5
+            n = 20000
+            [q1_i, q3_i] = fm.calculate_quartile_I()
+            [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+            print("End avg calc")
+            plot_seir_q1_q3("q_seir_n_sim=" + str(n_s * n_proc), q1_i, q3_i, offset=start_contagion)
+            plot_seir_result("abs_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+            # plot_seir_tracing("abs_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+            [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+            plot_seir_result("perc_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+            # plot_seir_tracing("perc_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+        elif sys.argv[1] == "print-q":
+            step_p_day = 12
+            start_contagion = 5
+            n = 20000
+            [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+            [q1_i, q3_i] = fm.calculate_quartile_I()
+            print("End avg calc")
+            # plot_is_q1_q3("seir_sim=" + str(n_s * n_proc), q1_i, q3_i, offset = start_contagion)
+            plot_seir_q1_q3("q_seir_n_sim=" + str(n_s * n_proc), q1_i, q3_i, offset=start_contagion)
+            plot_tracing_q1_q3("q_tr_n_sim=" + str(n_s * n_proc), q1_i, q3_i, offset=start_contagion)
+            # plot_seir_tracing("abs_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+            [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing(n)
+            plot_seir_result("perc_avg_seir_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+            # plot_seir_tracing("perc_avg_tracing_n_sim=" + str(n_s * n_proc), offset=start_contagion)
+        elif sys.argv[1] == "stat-r0":
+            # n_e = 3827
+            # n_i = 209
+            # n_qei = 201
+            # n_is = 141
+
+            n_e = 1582
+            n_i = 170
+            n_qei = 801
+            n_is = 177
+            print(fm.calculate_rt_avarage(n_e, n_i, n_qei, n_is))
+            # print(fm.calculate_rt_avarage(2445,169,849,140))
+        elif sys.argv[1] == "get-result":
+            step_p_day = 12
+            start_contagion = 5
+            n = 20000
+            get_tracing_result()
+        elif sys.argv[1] == "get-max":
+            step_p_day = 12
+            i_max, t_i = fm.get_max_I()
+            is_max, t_is = fm.get_max_Is()
+            print("i " + str(i_max))
+            print("t_i " + str(t_i / 12))
+            # print("is " + str(is_max))
+            # print("t_is "+str(t_is/12))
+            tot_max, t_tot = fm.get_max_Is_I()
+            print("tot " + str(tot_max))
+            print("t tot " + str(t_tot / step_p_day))
+        elif sys.argv[1] == "plot-degree":
+            import scipy.special
+
+            n = 40
+            p = 0.03
+            k_max = 22
+            degrees = [0 for elem in range(0, n)]
+            max = 0
+            m = 0
+            for k in range(0, n):
+                degrees[k] = scipy.special.binom(n - 1, k) * (p ** k) * ((1 - p) ** (n - 1 - k))
+                if degrees[k] > max:
+                    max = degrees[k]
+                    m = k
+            x = [elem for elem in range(0, k_max)]
+            plt.plot(x[:], degrees[:k_max])
+            plt.ylabel('P(k)', fontsize=14)
+            plt.xlabel('k', fontsize=12)
+            # plt.ylabel('', fontsize=14)
+            plt.grid(True)
+            plt.savefig("prova")
+            print(degrees[:25])
+            print(max)
+            print(m)
+        elif sys.argv[1] == "plot-graph":
+            # a = gm.create_family_graph([[5,8],[11,12,13,14],[3],[6,7,9,10], [15,16],[17,18,19,20,21]])
+            a = gm.nx.erdos_renyi_graph(40, 0.03)
+            b = gm.nx.erdos_renyi_graph(60, 0.03)
+            c = gm.nx.erdos_renyi_graph(80, 0.03)
+            # d = gm.nx.erdos_renyi_graph(40, 0.03)
+            a = gm.nx.disjoint_union(a, b)
+            a = gm.nx.disjoint_union(a, c)
+            # a = gm.nx.disjoint_union(a, d)
+            # res= gm.nx.union_all(a,b,c,d,"grafo")
+            gm.print_graph(a, "res")
         else:
             wrong_param()
 else:

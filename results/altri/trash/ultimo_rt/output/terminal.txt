@@ -1,0 +1,382 @@
+T: 72
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+
+Graph and Time Parameters: 
+
+Number of Nodes: .......... 20000
+n days: ................... 30
+Step per day............... 12
+Step spent at home......... 6
+Step spent at work......... 4
+Number of Students: ....... 10000
+Number of Employee: ....... 10000
+
+Family size: .............. 1 - 6
+Prob Diagnosi.............. 0
+Prob Ricezione Notifica.... 0.8
+
+Epidemic Parameters: 
+
+Beta: ..................... 0.2
+Sigma: .................... 0.2
+Gamma: .................... 0.06
+Eta: ...................... 0.1
+Pr sympt: ................. 0.45
+Pr false neg: ............. 0.1
+
+output/ws_t_path.csv have been cleared
+output/avg_ws_t.csv have been cleared
+Start Process 1260548
+Costants have been initialized
+lists have been  initialized, Process 1260548
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 1260548 has fineshed to create families graph
+office partitions: 512
+school partitions: 20
+School
+Office
+Process 1260548 has fineshed to create office-school graphs
+Process 1260548 has fineshed to create transport graph
+Process 1260548SIMULATION 0
+Day 0 Process 1260548
+False
+Day 1 Process 1260548
+False
+Day 2 Process 1260548
+False
+Day 3 Process 1260548
+False
+Day 4 Process 1260548
+False
+Day 5 Process 1260548
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 1260548:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 369944
+Costants have been initialized
+lists have been  initialized, Process 369944
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 369944 has fineshed to create families graph
+office partitions: 515
+school partitions: 20
+School
+Office
+Process 369944 has fineshed to create office-school graphs
+Process 369944 has fineshed to create transport graph
+Process 369944SIMULATION 0
+Day 0 Process 369944
+False
+Day 1 Process 369944
+False
+Day 2 Process 369944
+False
+Day 3 Process 369944
+False
+Day 4 Process 369944
+False
+Day 5 Process 369944
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 369944:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 6653
+Costants have been initialized
+lists have been  initialized, Process 6653
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 6653 has fineshed to create families graph
+office partitions: 512
+school partitions: 21
+School
+Office
+Process 6653 has fineshed to create office-school graphs
+Process 6653 has fineshed to create transport graph
+Process 6653SIMULATION 0
+Day 0 Process 6653
+False
+Day 1 Process 6653
+False
+Day 2 Process 6653
+False
+Day 3 Process 6653
+False
+Day 4 Process 6653
+False
+Day 5 Process 6653
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 6653:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 980321
+Costants have been initialized
+lists have been  initialized, Process 980321
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 980321 has fineshed to create families graph
+office partitions: 513
+school partitions: 20
+School
+Office
+Process 980321 has fineshed to create office-school graphs
+Process 980321 has fineshed to create transport graph
+Process 980321SIMULATION 0
+Day 0 Process 980321
+False
+Day 1 Process 980321
+False
+Day 2 Process 980321
+False
+Day 3 Process 980321
+False
+Day 4 Process 980321
+False
+Day 5 Process 980321
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 980321:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 6879238
+Costants have been initialized
+lists have been  initialized, Process 6879238
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 6879238 has fineshed to create families graph
+office partitions: 509
+school partitions: 20
+School
+Office
+Process 6879238 has fineshed to create office-school graphs
+Process 6879238 has fineshed to create transport graph
+Process 6879238SIMULATION 0
+Day 0 Process 6879238
+False
+Day 1 Process 6879238
+False
+Day 2 Process 6879238
+False
+Day 3 Process 6879238
+False
+Day 4 Process 6879238
+False
+Day 5 Process 6879238
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 6879238:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 5628732
+Costants have been initialized
+lists have been  initialized, Process 5628732
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 5628732 has fineshed to create families graph
+office partitions: 515
+school partitions: 21
+School
+Office
+Process 5628732 has fineshed to create office-school graphs
+Process 5628732 has fineshed to create transport graph
+Process 5628732SIMULATION 0
+Day 0 Process 5628732
+False
+Day 1 Process 5628732
+False
+Day 2 Process 5628732
+False
+Day 3 Process 5628732
+False
+Day 4 Process 5628732
+False
+Day 5 Process 5628732
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 5628732:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Start Process 930450
+Costants have been initialized
+lists have been  initialized, Process 930450
+Shuffle done
+Partizioni create
+Grafo famiglie creato
+Process 930450 has fineshed to create families graph
+office partitions: 516
+school partitions: 20
+School
+Office
+Process 930450 has fineshed to create office-school graphs
+Process 930450 has fineshed to create transport graph
+Process 930450SIMULATION 0
+Day 0 Process 930450
+False
+Day 1 Process 930450
+False
+Day 2 Process 930450
+False
+Day 3 Process 930450
+False
+Day 4 Process 930450
+False
+Day 5 Process 930450
+False
+S:13974
+E: 1582
+I: 170
+R: 11
+Is: 177
+Q-S: 3285
+Q-EI: 801
+Process 930450:
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 315, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.8/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "epidemic_sim.py", line 1174, in proc_run_sim
+    sim_tracing()
+  File "epidemic_sim.py", line 1091, in sim_tracing
+    set_fisrt_contagion()
+  File "epidemic_sim.py", line 944, in set_fisrt_contagion
+    set_initial_state()
+  File "epidemic_sim.py", line 2394, in set_initial_state
+    res_time_list[elem] = res_time_is[i]
+IndexError: list index out of range
+Results processing...
+Start avg calc ...
+Traceback (most recent call last):
+  File "epidemic_sim.py", line 2575, in <module>
+    get_tracing_result()
+  File "epidemic_sim.py", line 2181, in get_tracing_result
+    [s_t, e_t, i_t, r_t, is_t, qs_t, qei_t] = fm.calculate_average_from_csv_tracing()
+  File "/home/lombardo/Documents/contact_tracing_sim/file_manager.py", line 114, in calculate_average_from_csv_tracing
+    [avg, size] = calculate_average(file, size, n_node=n_node)
+  File "/home/lombardo/Documents/contact_tracing_sim/file_manager.py", line 86, in calculate_average
+    size = len(next(reader))  # Read first line and count columns
+StopIteration

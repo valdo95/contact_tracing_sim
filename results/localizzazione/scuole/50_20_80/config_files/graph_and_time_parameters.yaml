@@ -1,0 +1,43 @@
+n_nodes: 20000
+n_days: 35
+fr_students: 0.5
+fr_employees: 0.5
+# step_p_day: 4
+n_step_home: 6
+n_step_work: 4
+n_step_transp: 2
+min_family_size: 1
+max_familiy_size: 6
+#min_school_size: 80
+#max_school_size: 300
+#min_office_size: 10
+#max_office_size: 20
+# SCHOOL DIMENSION
+school_size: 500
+school_sd: 15
+# OFFICE DIMENSION
+office_size: 20
+office_sd: 2
+min_transp_size: 40
+max_transp_size: 200
+# TRACING PARAM
+fr_app_users: 0.2
+pr_notification: 0.8
+fr_far_contacts: 1
+# GRAPH DENSITY
+school_density: 0.25
+office_density: 0.1
+transport_density: 0.03
+# if seed == 0 viene settato da SO
+seed: 1
+window_size: 14
+is_sparse: False
+start_contagion: 5
+# STAZIONI CHECK
+st_transport: 0
+st_office: 0
+st_school: 0.5
+st_families: 0
+max_far_ngb: 400
+with_queue: False
+comp_random: True
